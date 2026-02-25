@@ -1,88 +1,157 @@
-RadarHD creates high resolution *lidar-like point clouds* from just a single-chip, cheap mmWave radar. This enables high quality perception even in vision/lidar denied scenarios such as in smoke or fog. For example: think of a futuristic fire fighting robot performing search and rescue in a smoky environment. This repository hosts files pertaining to this project that appeared in IEEE ICRA 2023. 
+# mmDar — Radar Super-Resolution via Asymmetric U-Net
 
-[Paper link](https://akarsh-prabhakara.github.io/files/radarhd-icra23.pdf) |
-[Demo link](https://www.youtube.com/watch?v=me8ozpgyy0M) |
-[Project website](https://akarsh-prabhakara.github.io/research#radarhd)
+mmDar extends [RadarHD (ICRA 2023)](https://arxiv.org/abs/2206.09273) to improve radar-to-lidar
+polar image translation. The research goal is to quantifiably improve over the RadarHD baseline
+on point-cloud metrics (Chamfer distance, modified Hausdorff) through targeted architectural
+enhancements: temporal modeling, attention mechanisms, and advanced loss functions.
 
-# RadarHD Overview
+Each improvement is isolated and ablated so the contribution of each change is measurable.
 
-<p align="center">
-  <img src="./imgs/teaser.png" />
-</p>
+## Key Results
 
-# Pre-requisites
+Pending evaluation. Planned comparison:
 
-- Install [Docker](https://docs.docker.com/engine/install/ubuntu/).
-- Clone this repository at `project_root`.
-- Download [pre-trained model](https://drive.google.com/file/d/1JorZEkDCIcQDSaMAabvkQX4scvwj0wzn/view?usp=sharing). Move this to [`logs/13_1_20220320-034822/`](./logs/13_1_20220320-034822/) folder in the cloned repository.
-- [Optional] Download the raw radar and lidar [full-dataset](https://drive.google.com/file/d/1mRclkODAoTNOI7WijItVi9AlSenqVlnJ/view?usp=sharing) ([part1-dataset](https://drive.google.com/file/d/1uPu2t1FpNqqevu21fJf_pJtcik1gPFWq/view?usp=sharing), [part2-dataset](https://drive.google.com/file/d/17EU_FkAOio8Onrl1LT5yvlpENMvKo7Xd/view?usp=drive_link), [part3-dataset](https://drive.google.com/file/d/1P7EczPJTPvON815ciuipm2FSG3_U9mPk/view?usp=drive_link), [part4-dataset](https://drive.google.com/file/d/14vahxjHVTwS4cS6SPfgJBr7AyIOUQdrB/view?usp=drive_link)) captured along 44 different trajectories. You can visualize each trajectory and map [here](https://drive.google.com/file/d/1EJVz64IUr-PIVsB-dhhnAU4MpnpdaHrL/view?usp=sharing). [`dataset_5`](./dataset_5/) contains a processed version of this raw dataset to help users train and test quickly without needing to deal with the raw dataset. If you find the dataset too big to download, here is a [smaller dataset](https://drive.google.com/file/d/1Zkz8IqoBAjqEpCvx_csmmL0zQww-Qzv3/view?usp=sharing).
-- Matlab (Only for point cloud error evaluation).
+| Experiment | Chamfer (m) | Mod-Hausdorff (m) | IoU | F1 | Notes |
+|------------|-------------|-------------------|-----|-----|-------|
+| Paper (reported) | 0.36 | 0.24 | — | — | RadarHD ICRA 2023 |
+| baseline_pretrained | — | — | — | — | Pretrained model |
+| baseline_paper_params | — | — | — | — | Retrained, paper HP |
+| baseline_5090_adapted | — | — | — | — | Retrained, 5090 GPU |
 
-# Repository structure
+See [`results/README.md`](./results/README.md) for full experiment tracking.
 
-- [`install.sh`](./install.sh) installs all dependencies.
-- [`train_radarhd.py`](./train_radarhd.py) and [`test_radarhd.py`](./test_radarhd.py) are used for training and testing our models. 
-- Pre-trained model is stored in [`logs/13_1_20220320-034822/`](./logs/13_1_20220320-034822/). This model was trained using radar-lidar images dataset in [`dataset_5/`](./dataset_5/). 
-- [`train_test_utils/`](./train_test_utils/) contains model, loss and dataloading definitions for training and testing.
-- [`eval/`](./eval/) contains scripts for evaluating RadarHD's generated upsampled radar images.
-- [`create_dataset/`](./create_dataset/) contains scripts that show our pre-ML radar and lidar processing on raw sensor data. Use this only for creating your own radar-lidar images dataset (similar to [`dataset_5`](./dataset_5/)) to train with our models.
+## Setup & Installation
 
-# Usage
+### Prerequisites
 
-- Create a Docker environment <br>
+- NVIDIA GPU (tested on RTX 5090)
+- Docker with NVIDIA Container Toolkit
+- ~350 MB free disk space for `dataset_5/`
 
-        sudo docker run -it --rm --gpus all --shm-size 8G -v project_root:/radarhd/ pytorch/pytorch bash
+### Quick Start
 
-- Install all dependencies <br>
+```bash
+# Clone and enter
+git clone <repo-url> && cd mmDar
 
-        cd /radarhd/
-        sh install.sh
+# Build Docker environment
+docker compose build
 
-    - When prompted, be sure to setup time zone as US Eastern. This avoids any time zone related [issues](https://github.com/akarsh-prabhakara/RadarHD/issues/2) that show up during dataset creation. 
-- For testing on pre-trained model [`logs/13_1_20220320-034822/`](./logs/13_1_20220320-034822/) and test images in [`dataset_5/test/`](./dataset_5/test/) <br>
+# Run interactive container
+docker compose run mmdar bash
 
-        python3 test_radarhd.py
-    
-    - For testing with other models and datasets, modify the constants in [`test_radarhd.py`](./test_radarhd.py).
-    - To test on CPU, make sure to use CPU device.
+# Inside container — inference with pretrained model
+python3 test_radarhd.py
 
-- For training using params similar to [`logs/13_1_20220320-034822/`](./logs/13_1_20220320-034822/) and train images in [`dataset_5/train/`](./dataset_5/train/) <br>
+# Inside container — train from scratch
+python3 train_radarhd.py
+```
 
-        python3 train_radarhd.py
+Alternatively, use the original Docker run command:
 
-    - For training with your own params and datasets, modify the constants in [`train_radarhd.py`](./train_radarhd.py)
+```bash
+sudo docker run -it --rm --gpus all --shm-size 8G \
+  -v $(pwd):/radarhd/ pytorch/pytorch bash
 
-- For evaluating the output of  [`test_radarhd.py`](./test_radarhd.py):
+cd /radarhd/
+sh install.sh
+```
 
-    - Executing [`test_radahd.py`](./test_radarhd.py) will create generated upsampled radar and ground truth lidar images in polar format for all the test data in the corresponding log folder. (Default: [`logs/13_1_20220320-034822/test_imgs/`](./logs/13_1_20220320-034822/test_imgs/))
-    - Convert polar images to cartesian.
+### Dependencies
 
-            cd ./eval/
-            python3 pol_to_cart.py
-    
-    - Convert cartesian images to point cloud for point cloud error evaluation.
+All Python dependencies are installed by `install.sh`:
 
-            python3 image_to_pcd.py
+```bash
+sh install.sh
+```
 
-    -  Visualize the generated point clouds for qualitative comparison in Matlab.
+Key packages: PyTorch, OpenCV, NumPy, SciPy, Matplotlib, Pillow.
 
-            pc_vizualize.m
+## Usage
 
-    - Generate quantitative point cloud comparison in Matlab (similar to [`eval/cdf.jpg`](./eval/cdf.jpg))
+### Training
 
-            pc_compare.m
+```bash
+# Train with default parameters (matching original RadarHD paper)
+python3 train_radarhd.py
+```
 
-# Citation
+Training configuration (model architecture, batch size, learning rate, etc.) is
+controlled by constants at the top of `train_radarhd.py`. TensorBoard logs are
+written to the `logs/` directory.
 
-If you found this work useful, please consider citing this work as:
+### Inference
 
-    @INPROCEEDINGS{10161429,
-    author={Prabhakara, Akarsh and Jin, Tao and Das, Arnav and Bhatt, Gantavya and Kumari, Lilly and Soltanaghai, Elahe and Bilmes, Jeff and Kumar, Swarun and Rowe, Anthony},
-    booktitle={2023 IEEE International Conference on Robotics and Automation (ICRA)}, 
-    title={High Resolution Point Clouds from mmWave Radar}, 
-    year={2023},
-    volume={},
-    number={},
-    pages={4135-4142},
-    doi={10.1109/ICRA48891.2023.10161429}}
+```bash
+# Run inference with pretrained model on test dataset
+python3 test_radarhd.py
+```
 
+Downloads the pretrained model checkpoint from the link in the original repository
+and places it under `logs/13_1_20220320-034822/`. Output images (predicted + ground
+truth in polar format) are written to `logs/.../test_imgs/`.
+
+### Evaluation
+
+The Python evaluation pipeline replaces MATLAB for all metric computation:
+
+```bash
+# Convert polar images to cartesian
+cd eval/
+python3 pol_to_cart.py
+
+# Compute all metrics (Chamfer, modified Hausdorff, IoU, F1)
+python3 eval_pointcloud.py \
+  --pred-dir  ../logs/<run>/test_imgs/pred/ \
+  --label-dir ../logs/<run>/test_imgs/label/ \
+  --output-dir ../results/<experiment-name>/ \
+  --experiment-name <experiment-name>
+```
+
+Outputs written to `results/<experiment-name>/`:
+- `metrics.json` — full per-sample and aggregate metrics
+- `metrics.csv`  — tabular summary
+- `plots/`       — side-by-side visualizations (radar / prediction / ground truth)
+
+The MATLAB pipeline (`eval/pc_compare.m`, `eval/pc_distance.m`) remains available
+for cross-validation.
+
+## Project Structure
+
+```
+mmDar/
+├── train_radarhd.py          # Training script
+├── test_radarhd.py           # Inference script
+├── install.sh                # Dependency installation
+├── dataset_5/                # Paired radar / lidar images (train + test)
+├── logs/                     # Model checkpoints and test outputs
+├── train_test_utils/         # Model, loss, and dataloader definitions
+├── eval/
+│   ├── eval_pointcloud.py    # Python evaluation module (CLI + importable)
+│   ├── pol_to_cart.py        # Polar → cartesian image conversion
+│   ├── image_to_pcd.py       # Cartesian image → point cloud (open3d)
+│   ├── pc_distance.m         # MATLAB point-cloud distance metrics
+│   └── pc_compare.m          # MATLAB CDF comparison plots
+├── results/                  # Per-experiment metrics and plots
+│   └── README.md             # Experiment comparison table
+└── create_dataset/           # Raw sensor processing scripts
+```
+
+## Credits & References
+
+- **Original paper:** [High Resolution Point Clouds from mmWave Radar](https://arxiv.org/abs/2206.09273),
+  Prabhakara et al., ICRA 2023
+- **Original codebase:** [github.com/akarsh-prabhakara/RadarHD](https://github.com/akarsh-prabhakara/RadarHD)
+
+```bibtex
+@INPROCEEDINGS{10161429,
+  author={Prabhakara, Akarsh and Jin, Tao and Das, Arnav and Bhatt, Gantavya
+          and Kumari, Lilly and Soltanaghai, Elahe and Bilmes, Jeff
+          and Kumar, Swarun and Rowe, Anthony},
+  booktitle={2023 IEEE International Conference on Robotics and Automation (ICRA)},
+  title={High Resolution Point Clouds from mmWave Radar},
+  year={2023},
+  pages={4135-4142},
+  doi={10.1109/ICRA48891.2023.10161429}
+}
+```
