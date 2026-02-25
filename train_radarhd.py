@@ -25,7 +25,7 @@ from train_test_utils.dice_score import dice_loss
 ## Constants and hyperparameters
 """
 params = {
-    'model_name': '13',
+    'model_name': 'baseline',
     'expt': 1,
     'batch_size': 6,
     'lr': 1e-4,
@@ -33,19 +33,20 @@ params = {
     'msew': 0.9,
     'dicew': 0.1,
     'optim': 'adam',
-    'model_caption': 'unet 1.',
-    'expt_caption': '',
+    'model_caption': 'unet 1. paper-exact reproduction',
+    'expt_caption': 'Paper-exact hyperparameters, fixed seed, RTX 5090',
     'data': 5,
     'history': 40,
     'reload': False,
     'reload_namestr': '',
     'reload_epoch': -1,
     'gpu': 1,
+    'mixed_precision': False,  # Set True for bf16 AMP (5090-adapted run)
 }
 
 def main():
     print(torch.__version__)
-    torch.manual_seed(0)  
+    torch.manual_seed(0)
 
     # Can be set to cuda/cpu. Make sure model and data are moved to cuda if cuda is used
     if params['gpu'] == 1:
@@ -72,7 +73,7 @@ def main():
 
     train_log_interval = 100
     model_save_interval = 10
-    
+
     if params['optim'] == 'adam':
         gen_optimizer = optim.Adam(gen.parameters(), lr=params['lr'], weight_decay=0.0005)
     elif params['optim'] == 'rmsprop':
@@ -80,9 +81,13 @@ def main():
 
     mse_loss_fn = torch.nn.BCELoss()
 
+    # Mixed precision setup (bf16 AMP for scaled-batch runs)
+    use_amp = params.get('mixed_precision', False)
+    scaler = torch.amp.GradScaler('cuda') if use_amp else None
+
     if params['reload']:
         epoch_num = '%03d' % params['reload_epoch']
-        model_file = './logs/' + params['reload_namestr'] + '/' + epoch_num + '.pt_gen'  
+        model_file = './logs/' + params['reload_namestr'] + '/' + epoch_num + '.pt_gen'
         checkpoint = torch.load(model_file, map_location=device)
         gen.load_state_dict(checkpoint['state_dict'])
 
@@ -98,7 +103,7 @@ def main():
         gen.train()
 
         losses = []
-        
+
         for batch_idx, (radar, lidar) in enumerate(train_loader):
             radar = radar.to(device)
             lidar = lidar.to(device)
@@ -106,27 +111,37 @@ def main():
 
             # Train
             gen_optimizer.zero_grad()
-            generated_images = gen(radar)
 
-            loss1 = mse_loss_fn(generated_images, lidar)
-            loss2 = dice_loss(generated_images, lidar)
-            gen_loss = params['msew']*loss1 + params['dicew']*loss2
+            if use_amp:
+                with torch.amp.autocast('cuda', dtype=torch.bfloat16):
+                    generated_images = gen(radar)
+                    loss1 = mse_loss_fn(generated_images, lidar)
+                    loss2 = dice_loss(generated_images, lidar)
+                    gen_loss = params['msew']*loss1 + params['dicew']*loss2
+                scaler.scale(gen_loss).backward()
+                scaler.step(gen_optimizer)
+                scaler.update()
+            else:
+                generated_images = gen(radar)
+                loss1 = mse_loss_fn(generated_images, lidar)
+                loss2 = dice_loss(generated_images, lidar)
+                gen_loss = params['msew']*loss1 + params['dicew']*loss2
+                gen_loss.backward()
+                gen_optimizer.step()
 
-            gen_loss.backward()
-            gen_optimizer.step()
             losses.append(gen_loss.item())
 
             info = ''
-            if (batch_idx % train_log_interval == 0): 
+            if (batch_idx % train_log_interval == 0):
                 info = 'Train Epoch: {} [{}/{} ({:.0f}%)]\tGen Loss: {:.6f} '.format(
                     epoch, batch_idx, len(train_loader),
                     100. * batch_idx / len(train_loader), gen_loss.item())
-            
+
             if len(info) > 0:
                 with open(train_log, 'a+') as f:
                     f.write(info + "\n")
                     print(info)
-    
+
         epoch_loss = np.mean(losses)
         writer.add_scalar('Loss/train_epoch', epoch_loss, epoch)
 
@@ -157,11 +172,11 @@ print('Loading data')
 basepath = './dataset_' + str(params['data']) + '/'
 
 orig_size = [256, 64, 512]
-reqd_size = [256, 64, 512]  
+reqd_size = [256, 64, 512]
 
 training_set = Dataset(basepath, 'train',
                         RBINS=reqd_size[0], ABINS_RADAR=reqd_size[1], ABINS_LIDAR=reqd_size[2],
-                        RBINS_ORIG=orig_size[0], ABINS_RADAR_ORIG=orig_size[1], ABINS_LIDAR_ORIG=orig_size[2], 
+                        RBINS_ORIG=orig_size[0], ABINS_RADAR_ORIG=orig_size[1], ABINS_LIDAR_ORIG=orig_size[2],
                         M=params['history'])
 train_loader = torch.utils.data.DataLoader(training_set, batch_size=params['batch_size'], shuffle=True)
 

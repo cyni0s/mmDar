@@ -1,0 +1,16 @@
+{
+  "experiment": "baseline_paper_params",
+  "model": "UNet1",
+  "batch_size": 6,
+  "lr": 0.0001,
+  "num_epochs": 200,
+  "loss": "0.9*BCE + 0.1*Dice",
+  "optimizer": "adam",
+  "weight_decay": 0.0005,
+  "history": 40,
+  "dataset": "dataset_5",
+  "seed": 0,
+  "mixed_precision": false,
+  "hardware": "RTX 5090",
+  "notes": "Paper-exact hyperparameters. Training on RTX 5090 but with original batch/lr."
+}
