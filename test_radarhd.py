@@ -63,7 +63,7 @@ def main():
 
     # Define model
     gen = UNet1(train_params['history']+1, 1).to(device)
-    summary(gen, (train_params['history']+1, 256, 64))
+    summary(gen, input_size=(1, train_params['history']+1, 256, 64))
 
     epoch_num = '%03d' % params['epoch_num']
     model_file = LOG_DIR + epoch_num + '.pt_gen'

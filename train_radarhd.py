@@ -68,7 +68,7 @@ def main():
 
     # Creating models
     gen = UNet1(params['history']+1,1).to(device)
-    summary(gen, (params['history']+1, 256, 64))
+    summary(gen, input_size=(1, params['history']+1, 256, 64))
 
     train_log_interval = 100
     model_save_interval = 10

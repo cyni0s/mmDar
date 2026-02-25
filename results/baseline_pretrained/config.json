@@ -1,0 +1,16 @@
+{
+  "experiment": "baseline_pretrained",
+  "model": "UNet1 (RadarHD pretrained)",
+  "checkpoint": "logs/13_1_20220320-034822/120.pt_gen",
+  "epochs_trained": 200,
+  "batch_size": 6,
+  "lr": 1e-4,
+  "loss": "0.9*BCE + 0.1*Dice",
+  "optimizer": "adam",
+  "history": 40,
+  "dataset": "dataset_5",
+  "pytorch_version": "2.7.0",
+  "gpu": "RTX 5090 (sm_120)",
+  "cuda": "12.8",
+  "notes": "Original pretrained model from RadarHD authors. Inference run fresh (Option B) with NGC 25.02-py3 container on RTX 5090."
+}
