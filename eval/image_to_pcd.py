@@ -36,7 +36,7 @@ def convert2pcd(img_files, DIR):
         # 0 dim is azimuth, 1 dim is range
         location = np.squeeze(cv2.findNonZero(thresh_img))
 
-        if location.size == 1:
+        if location is None:
             dummy = np.column_stack((np.array([0]), np.array([0]), np.array([0])))
             pcd = o3d.geometry.PointCloud()
             pcd.points = o3d.utility.Vector3dVector(dummy)     

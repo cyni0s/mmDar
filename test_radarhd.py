@@ -8,7 +8,7 @@ import json
 import torch
 
 import numpy as np
-from torchsummary import summary
+from torchinfo import summary
 
 from train_test_utils.dataloader import *
 from train_test_utils.model import *

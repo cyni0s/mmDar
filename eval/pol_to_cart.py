@@ -4,6 +4,7 @@
 from PIL import Image
 import numpy as np
 import glob as glob
+import shutil
 import sys
 import os
 
@@ -38,7 +39,7 @@ name_str = params['model_name'] + '_' + str(params['expt']) + '_' + params['dt']
 img_dir = '../logs/' + name_str + '/test_imgs/'
 save_path = './processed_imgs_' + name_str + '_test_imgs/'
 
-os.system('rm -rf ' + save_path)
+shutil.rmtree(save_path, ignore_errors=True)
 os.makedirs(save_path)
 
 agrid = np.linspace(-90,90,ABINS)
@@ -90,8 +91,10 @@ for traj in trajs:
         LABEL_DIR = EPOCH_DIR + 'label/'
         if not os.path.exists(LABEL_DIR):
             os.makedirs(LABEL_DIR)
-        os.system('mv ' + save_path + epoch + '_' + traj + '*_pred.png '+PRED_DIR)
-        os.system('mv ' + save_path + epoch + '_' + traj + '*_label.png '+LABEL_DIR)
+        for f in glob.glob(save_path + epoch + '_' + traj + '*_pred.png'):
+            shutil.move(f, PRED_DIR)
+        for f in glob.glob(save_path + epoch + '_' + traj + '*_label.png'):
+            shutil.move(f, LABEL_DIR)
 
     # ALL_LABEL_DIR = TRAJ_DIR + 'label/'
     # if not os.path.exists(ALL_LABEL_DIR):

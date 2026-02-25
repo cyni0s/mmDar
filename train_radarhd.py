@@ -5,12 +5,15 @@ import os
 import datetime
 import json
 import gc
+import shutil
+
+from torch.utils.tensorboard import SummaryWriter
 
 import torch
 import torch.optim as optim
 
 import numpy as np
-from torchsummary import summary
+from torchinfo import summary
 from PIL import Image
 from scipy.io import savemat
 
@@ -26,7 +29,7 @@ params = {
     'expt': 1,
     'batch_size': 6,
     'lr': 1e-4,
-    'num_epochs': 130,
+    'num_epochs': 200,
     'msew': 0.9,
     'dicew': 0.1,
     'optim': 'adam',
@@ -61,6 +64,7 @@ def main():
     with open(os.path.join(LOG_DIR, 'params.json'), 'w') as f:
         json.dump(params, f)
     train_log = os.path.join(LOG_DIR, 'train_log.txt')
+    writer = SummaryWriter(log_dir=os.path.join(LOG_DIR, 'tensorboard'))
 
     # Creating models
     gen = UNet1(params['history']+1,1).to(device)
@@ -79,10 +83,12 @@ def main():
     if params['reload']:
         epoch_num = '%03d' % params['reload_epoch']
         model_file = './logs/' + params['reload_namestr'] + '/' + epoch_num + '.pt_gen'  
-        checkpoint = torch.load(model_file)
+        checkpoint = torch.load(model_file, map_location=device)
         gen.load_state_dict(checkpoint['state_dict'])
 
     t0 = time.time()
+
+    best_loss = float('inf')
 
     for epoch in range(params['num_epochs']):
 
@@ -108,6 +114,7 @@ def main():
 
             gen_loss.backward()
             gen_optimizer.step()
+            losses.append(gen_loss.item())
 
             info = ''
             if (batch_idx % train_log_interval == 0): 
@@ -120,6 +127,15 @@ def main():
                     f.write(info + "\n")
                     print(info)
     
+        epoch_loss = np.mean(losses)
+        writer.add_scalar('Loss/train_epoch', epoch_loss, epoch)
+
+        if epoch_loss < best_loss:
+            best_loss = epoch_loss
+            best_checkpoint = {'state_dict': gen.state_dict(),
+                               'optimizer_state_dict': gen_optimizer.state_dict()}
+            torch.save(best_checkpoint, os.path.join(LOG_DIR, 'best.pt_gen'))
+
         if epoch % model_save_interval == 0:
             checkpoint = {'state_dict': gen.state_dict(),
                             'optimizer_state_dict': gen_optimizer.state_dict()}
@@ -127,10 +143,15 @@ def main():
 
         gc.collect()
 
+    writer.close()
     t1 = time.time()
     print(t1 - t0)
 
 # ****************************  DATALOADER ******************************
+# NOTE: Dataloader is constructed at module scope (outside main()).
+# This means importing this file as a module triggers data loading.
+# Kept as-is for backward compatibility; wrap in if __name__ == '__main__' guard later.
+# history=40 past frames + 1 current frame = 41 input channels
 
 print('Loading data')
 basepath = './dataset_' + str(params['data']) + '/'
