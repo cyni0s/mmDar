@@ -1,0 +1,32 @@
+# Planning docs (local only)
+.planning/
+
+# Checkpoints and model weights
+*.pt_gen
+*.pth
+logs/*/tensorboard/
+
+# Large data files
+dataset_*/
+RadarHD-dataset.zip
+
+# Pretrained model (downloaded separately)
+logs/*/[0-9]*.pt_gen
+
+# TensorBoard logs
+runs/
+tensorboard_logs/
+
+# Eval intermediate outputs
+eval/processed_imgs_*/
+
+# Raw predictions (regenerable)
+logs/*/test_imgs/
+
+# Python
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# OS
+.DS_Store

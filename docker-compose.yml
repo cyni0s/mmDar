@@ -1,0 +1,12 @@
+services:
+  mmdar:
+    build: .
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+    shm_size: '8g'
+    volumes:
+      - .:/mmdar
+    working_dir: /mmdar
+    stdin_open: true
+    tty: true
