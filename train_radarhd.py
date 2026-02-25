@@ -178,7 +178,9 @@ training_set = Dataset(basepath, 'train',
                         RBINS=reqd_size[0], ABINS_RADAR=reqd_size[1], ABINS_LIDAR=reqd_size[2],
                         RBINS_ORIG=orig_size[0], ABINS_RADAR_ORIG=orig_size[1], ABINS_LIDAR_ORIG=orig_size[2],
                         M=params['history'])
-train_loader = torch.utils.data.DataLoader(training_set, batch_size=params['batch_size'], shuffle=True)
+train_loader = torch.utils.data.DataLoader(
+    training_set, batch_size=params['batch_size'], shuffle=True,
+    num_workers=4, pin_memory=True)
 
 # ***********************************************************************
 
