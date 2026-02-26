@@ -1,0 +1,30 @@
+# Large data files — mounted as volumes, not baked into image
+*.zip
+dataset_*/
+RadarHD-dataset.zip
+
+# Model checkpoints and logs — mounted as volumes
+logs/
+*.pt_gen
+*.pth
+
+# Results — generated at runtime
+results/
+
+# Eval intermediate outputs
+eval/processed_imgs_*/
+
+# Git and planning
+.git/
+.planning/
+
+# Python caches
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+
+# Paper assets
+paper/
