@@ -20,10 +20,10 @@ Set epoch_num to -1 to load best.pt_gen (best checkpoint by training loss).
 """
 
 params = {
-    'model_name': '13',
+    'model_name': 'baseline',
     'expt': 1,
-    'dt': '20220320-034822',
-    'epoch_num': 120,   # Set to -1 to use best.pt_gen
+    'dt': '20260225-184801',
+    'epoch_num': -1,    # -1 = use best.pt_gen (best training loss checkpoint)
     'data': 5,
     'gpu': 1,
 }
