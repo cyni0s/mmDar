@@ -14,9 +14,9 @@ Pending evaluation. Planned comparison:
 | Experiment | Chamfer (m) | Mod-Hausdorff (m) | IoU | F1 | Notes |
 |------------|-------------|-------------------|-----|-----|-------|
 | Paper (reported) | 0.36 | 0.24 | — | — | RadarHD ICRA 2023 |
-| baseline_pretrained | — | — | — | — | Pretrained model |
-| baseline_paper_params | — | — | — | — | Retrained, paper HP |
-| baseline_5090_adapted | — | — | — | — | Retrained, 5090 GPU |
+| baseline_pretrained | **0.429** | **0.297** | 0.026 | 0.051 | Pretrained model |
+| baseline_paper_params | 0.492 | 0.341 | 0.025 | 0.050 | Retrained, paper HP |
+| baseline_5090_adapted | 0.566 | 0.426 | 0.013 | 0.025 | Retrained, 5090 GPU |
 
 See [`results/README.md`](./results/README.md) for full experiment tracking.
 
