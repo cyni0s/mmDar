@@ -1,0 +1,17 @@
+{
+  "experiment": "baseline_5090_adapted",
+  "model": "UNet1",
+  "batch_size": 48,
+  "lr": 0.0008,
+  "num_epochs": 200,
+  "loss": "0.9*BCE + 0.1*Dice",
+  "optimizer": "adam",
+  "weight_decay": 0.0005,
+  "history": 40,
+  "dataset": "dataset_5",
+  "seed": 0,
+  "mixed_precision": true,
+  "mixed_precision_dtype": "bfloat16",
+  "hardware": "RTX 5090",
+  "notes": "5090-optimized: batch_size=48 (OOM-tested), lr=8e-4 (linear scaling rule: 48/6 * 1e-4), bf16 AMP. OOM test showed batch_size=48 uses 11.8GB of 32GB VRAM."
+}

@@ -26,22 +26,22 @@ from train_test_utils.dice_score import dice_loss
 """
 params = {
     'model_name': 'baseline',
-    'expt': 1,
-    'batch_size': 6,
-    'lr': 1e-4,
+    'expt': 2,
+    'batch_size': 48,
+    'lr': 8e-4,
     'num_epochs': 200,
     'msew': 0.9,
     'dicew': 0.1,
     'optim': 'adam',
-    'model_caption': 'unet 1. paper-exact reproduction',
-    'expt_caption': 'Paper-exact hyperparameters, fixed seed, RTX 5090',
+    'model_caption': 'unet 1. 5090-adapted reproduction',
+    'expt_caption': 'Scaled batch+LR (linear rule) + bf16 AMP on RTX 5090',
     'data': 5,
     'history': 40,
     'reload': False,
     'reload_namestr': '',
     'reload_epoch': -1,
     'gpu': 1,
-    'mixed_precision': False,  # Set True for bf16 AMP (5090-adapted run)
+    'mixed_precision': True,  # bf16 AMP for 5090-adapted run
 }
 
 def main():
@@ -115,9 +115,11 @@ def main():
             if use_amp:
                 with torch.amp.autocast('cuda', dtype=torch.bfloat16):
                     generated_images = gen(radar)
-                    loss1 = mse_loss_fn(generated_images, lidar)
-                    loss2 = dice_loss(generated_images, lidar)
-                    gen_loss = params['msew']*loss1 + params['dicew']*loss2
+                # BCELoss is unsafe in autocast; cast to float32 for loss computation
+                generated_images_f32 = generated_images.float()
+                loss1 = mse_loss_fn(generated_images_f32, lidar.float())
+                loss2 = dice_loss(generated_images_f32, lidar.float())
+                gen_loss = params['msew']*loss1 + params['dicew']*loss2
                 scaler.scale(gen_loss).backward()
                 scaler.step(gen_optimizer)
                 scaler.update()
