@@ -1,0 +1,1325 @@
+
+=============
+== PyTorch ==
+=============
+
+NVIDIA Release 25.02 (build 143088496)
+PyTorch Version 2.7.0a0+ecf3bae
+Container image Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+Copyright (c) 2014-2024 Facebook Inc.
+Copyright (c) 2011-2014 Idiap Research Institute (Ronan Collobert)
+Copyright (c) 2012-2014 Deepmind Technologies    (Koray Kavukcuoglu)
+Copyright (c) 2011-2012 NEC Laboratories America (Koray Kavukcuoglu)
+Copyright (c) 2011-2013 NYU                      (Clement Farabet)
+Copyright (c) 2006-2010 NEC Laboratories America (Ronan Collobert, Leon Bottou, Iain Melvin, Jason Weston)
+Copyright (c) 2006      Idiap Research Institute (Samy Bengio)
+Copyright (c) 2001-2004 Idiap Research Institute (Ronan Collobert, Samy Bengio, Johnny Mariethoz)
+Copyright (c) 2015      Google Inc.
+Copyright (c) 2015      Yangqing Jia
+Copyright (c) 2013-2016 The Caffe contributors
+All rights reserved.
+
+Various files include modifications (c) NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+
+This container image and its contents are governed by the NVIDIA Deep Learning Container License.
+By pulling and using the container, you accept the terms and conditions of this license:
+https://developer.nvidia.com/ngc/nvidia-deep-learning-container-license
+
+Loading data
+Traj  112 Time  0   612
+Traj  113 Time  0   853
+Traj  114 Time  0   850
+Traj  115 Time  0   1054
+Traj  116 Time  0   761
+Traj  118 Time  0   917
+Traj  119 Time  0   1022
+Traj  120 Time  0   1038
+Traj  121 Time  0   919
+Traj  122 Time  0   859
+Traj  123 Time  0   902
+Traj  125 Time  0   891
+Traj  126 Time  0   901
+Traj  127 Time  0   884
+Traj  128 Time  0   925
+Traj  129 Time  0   922
+Traj  130 Time  0   914
+Traj  131 Time  0   893
+Traj  133 Time  0   844
+Traj  134 Time  0   865
+Traj  135 Time  0   897
+Traj  136 Time  0   1024
+Traj  137 Time  0   1030
+Traj  138 Time  0   922
+Traj  140 Time  0   1057
+2.7.0a0+ecf3bae40a.nv25.02
+===============================================================================================
+Layer (type:depth-idx)                        Output Shape              Param #
+===============================================================================================
+UNet1                                         [1, 1, 256, 512]          --
+├─DoubleConv: 1-1                             [1, 64, 256, 64]          --
+│    └─Sequential: 2-1                        [1, 64, 256, 64]          --
+│    │    └─Conv2d: 3-1                       [1, 64, 256, 64]          23,680
+│    │    └─BatchNorm2d: 3-2                  [1, 64, 256, 64]          128
+│    │    └─ReLU: 3-3                         [1, 64, 256, 64]          --
+│    │    └─Conv2d: 3-4                       [1, 64, 256, 64]          36,928
+│    │    └─BatchNorm2d: 3-5                  [1, 64, 256, 64]          128
+│    │    └─ReLU: 3-6                         [1, 64, 256, 64]          --
+├─Down: 1-2                                   [1, 128, 128, 32]         --
+│    └─Sequential: 2-2                        [1, 128, 128, 32]         --
+│    │    └─MaxPool2d: 3-7                    [1, 64, 128, 32]          --
+│    │    └─DoubleConv: 3-8                   [1, 128, 128, 32]         221,952
+├─Down: 1-3                                   [1, 256, 64, 16]          --
+│    └─Sequential: 2-3                        [1, 256, 64, 16]          --
+│    │    └─MaxPool2d: 3-9                    [1, 128, 64, 16]          --
+│    │    └─DoubleConv: 3-10                  [1, 256, 64, 16]          886,272
+├─Down: 1-4                                   [1, 512, 32, 8]           --
+│    └─Sequential: 2-4                        [1, 512, 32, 8]           --
+│    │    └─MaxPool2d: 3-11                   [1, 256, 32, 8]           --
+│    │    └─DoubleConv: 3-12                  [1, 512, 32, 8]           3,542,016
+├─Down: 1-5                                   [1, 512, 16, 4]           --
+│    └─Sequential: 2-5                        [1, 512, 16, 4]           --
+│    │    └─MaxPool2d: 3-13                   [1, 512, 16, 4]           --
+│    │    └─DoubleConv: 3-14                  [1, 512, 16, 4]           4,721,664
+├─Up: 1-6                                     [1, 256, 32, 8]           --
+│    └─Upsample: 2-6                          [1, 512, 32, 8]           --
+│    └─DoubleConv: 2-7                        [1, 256, 32, 8]           --
+│    │    └─Sequential: 3-15                  [1, 256, 32, 8]           5,900,544
+├─Up: 1-7                                     [1, 128, 64, 16]          --
+│    └─Upsample: 2-8                          [1, 256, 64, 16]          --
+│    └─DoubleConv: 2-9                        [1, 128, 64, 16]          --
+│    │    └─Sequential: 3-16                  [1, 128, 64, 16]          1,475,712
+├─Up: 1-8                                     [1, 64, 128, 32]          --
+│    └─Upsample: 2-10                         [1, 128, 128, 32]         --
+│    └─DoubleConv: 2-11                       [1, 64, 128, 32]          --
+│    │    └─Sequential: 3-17                  [1, 64, 128, 32]          369,216
+├─Up: 1-9                                     [1, 64, 256, 64]          --
+│    └─Upsample: 2-12                         [1, 64, 256, 64]          --
+│    └─DoubleConv: 2-13                       [1, 64, 256, 64]          --
+│    │    └─Sequential: 3-18                  [1, 64, 256, 64]          110,976
+├─Up_nocat: 1-10                              [1, 64, 256, 128]         --
+│    └─Upsample: 2-14                         [1, 64, 256, 128]         --
+│    └─DoubleConv: 2-15                       [1, 64, 256, 128]         --
+│    │    └─Sequential: 3-19                  [1, 64, 256, 128]         74,112
+├─Up_nocat: 1-11                              [1, 64, 256, 256]         --
+│    └─Upsample: 2-16                         [1, 64, 256, 256]         --
+│    └─DoubleConv: 2-17                       [1, 64, 256, 256]         --
+│    │    └─Sequential: 3-20                  [1, 64, 256, 256]         74,112
+├─Up_nocat: 1-12                              [1, 64, 256, 512]         --
+│    └─Upsample: 2-18                         [1, 64, 256, 512]         --
+│    └─DoubleConv: 2-19                       [1, 64, 256, 512]         --
+│    │    └─Sequential: 3-21                  [1, 64, 256, 512]         74,112
+├─OutConv: 1-13                               [1, 1, 256, 512]          --
+│    └─Conv2d: 2-20                           [1, 1, 256, 512]          65
+├─Sigmoid: 1-14                               [1, 1, 256, 512]          --
+===============================================================================================
+Total params: 17,511,617
+Trainable params: 17,511,617
+Non-trainable params: 0
+Total mult-adds (Units.GIGABYTES): 27.31
+===============================================================================================
+Input size (MB): 2.69
+Forward/backward pass size (MB): 590.35
+Params size (MB): 70.05
+Estimated Total Size (MB): 663.08
+===============================================================================================
+==========Epoch 0==========
+Train Epoch: 0 [0/454 (0%)]	Gen Loss: 0.761150 
+Train Epoch: 0 [100/454 (22%)]	Gen Loss: 0.211390 
+Train Epoch: 0 [200/454 (44%)]	Gen Loss: 0.156814 
+Train Epoch: 0 [300/454 (66%)]	Gen Loss: 0.141267 
+Train Epoch: 0 [400/454 (88%)]	Gen Loss: 0.133130 
+==========Epoch 1==========
+Train Epoch: 1 [0/454 (0%)]	Gen Loss: 0.130571 
+Train Epoch: 1 [100/454 (22%)]	Gen Loss: 0.124715 
+Train Epoch: 1 [200/454 (44%)]	Gen Loss: 0.123216 
+Train Epoch: 1 [300/454 (66%)]	Gen Loss: 0.121549 
+Train Epoch: 1 [400/454 (88%)]	Gen Loss: 0.122995 
+==========Epoch 2==========
+Train Epoch: 2 [0/454 (0%)]	Gen Loss: 0.120905 
+Train Epoch: 2 [100/454 (22%)]	Gen Loss: 0.119863 
+Train Epoch: 2 [200/454 (44%)]	Gen Loss: 0.120469 
+Train Epoch: 2 [300/454 (66%)]	Gen Loss: 0.120563 
+Train Epoch: 2 [400/454 (88%)]	Gen Loss: 0.114828 
+==========Epoch 3==========
+Train Epoch: 3 [0/454 (0%)]	Gen Loss: 0.116366 
+Train Epoch: 3 [100/454 (22%)]	Gen Loss: 0.115687 
+Train Epoch: 3 [200/454 (44%)]	Gen Loss: 0.112267 
+Train Epoch: 3 [300/454 (66%)]	Gen Loss: 0.114934 
+Train Epoch: 3 [400/454 (88%)]	Gen Loss: 0.113990 
+==========Epoch 4==========
+Train Epoch: 4 [0/454 (0%)]	Gen Loss: 0.113855 
+Train Epoch: 4 [100/454 (22%)]	Gen Loss: 0.108781 
+Train Epoch: 4 [200/454 (44%)]	Gen Loss: 0.108300 
+Train Epoch: 4 [300/454 (66%)]	Gen Loss: 0.111491 
+Train Epoch: 4 [400/454 (88%)]	Gen Loss: 0.106775 
+==========Epoch 5==========
+Train Epoch: 5 [0/454 (0%)]	Gen Loss: 0.107806 
+Train Epoch: 5 [100/454 (22%)]	Gen Loss: 0.108798 
+Train Epoch: 5 [200/454 (44%)]	Gen Loss: 0.111073 
+Train Epoch: 5 [300/454 (66%)]	Gen Loss: 0.114732 
+Train Epoch: 5 [400/454 (88%)]	Gen Loss: 0.106358 
+==========Epoch 6==========
+Train Epoch: 6 [0/454 (0%)]	Gen Loss: 0.107525 
+Train Epoch: 6 [100/454 (22%)]	Gen Loss: 0.107357 
+Train Epoch: 6 [200/454 (44%)]	Gen Loss: 0.099224 
+Train Epoch: 6 [300/454 (66%)]	Gen Loss: 0.105916 
+Train Epoch: 6 [400/454 (88%)]	Gen Loss: 0.103708 
+==========Epoch 7==========
+Train Epoch: 7 [0/454 (0%)]	Gen Loss: 0.105683 
+Train Epoch: 7 [100/454 (22%)]	Gen Loss: 0.104028 
+Train Epoch: 7 [200/454 (44%)]	Gen Loss: 0.101875 
+Train Epoch: 7 [300/454 (66%)]	Gen Loss: 0.105739 
+Train Epoch: 7 [400/454 (88%)]	Gen Loss: 0.103432 
+==========Epoch 8==========
+Train Epoch: 8 [0/454 (0%)]	Gen Loss: 0.100048 
+Train Epoch: 8 [100/454 (22%)]	Gen Loss: 0.106731 
+Train Epoch: 8 [200/454 (44%)]	Gen Loss: 0.106373 
+Train Epoch: 8 [300/454 (66%)]	Gen Loss: 0.095523 
+Train Epoch: 8 [400/454 (88%)]	Gen Loss: 0.100444 
+==========Epoch 9==========
+Train Epoch: 9 [0/454 (0%)]	Gen Loss: 0.098625 
+Train Epoch: 9 [100/454 (22%)]	Gen Loss: 0.098215 
+Train Epoch: 9 [200/454 (44%)]	Gen Loss: 0.101950 
+Train Epoch: 9 [300/454 (66%)]	Gen Loss: 0.099283 
+Train Epoch: 9 [400/454 (88%)]	Gen Loss: 0.102090 
+==========Epoch 10==========
+Train Epoch: 10 [0/454 (0%)]	Gen Loss: 0.102623 
+Train Epoch: 10 [100/454 (22%)]	Gen Loss: 0.096270 
+Train Epoch: 10 [200/454 (44%)]	Gen Loss: 0.101720 
+Train Epoch: 10 [300/454 (66%)]	Gen Loss: 0.103547 
+Train Epoch: 10 [400/454 (88%)]	Gen Loss: 0.098781 
+==========Epoch 11==========
+Train Epoch: 11 [0/454 (0%)]	Gen Loss: 0.098988 
+Train Epoch: 11 [100/454 (22%)]	Gen Loss: 0.100241 
+Train Epoch: 11 [200/454 (44%)]	Gen Loss: 0.099725 
+Train Epoch: 11 [300/454 (66%)]	Gen Loss: 0.100941 
+Train Epoch: 11 [400/454 (88%)]	Gen Loss: 0.100364 
+==========Epoch 12==========
+Train Epoch: 12 [0/454 (0%)]	Gen Loss: 0.095392 
+Train Epoch: 12 [100/454 (22%)]	Gen Loss: 0.093211 
+Train Epoch: 12 [200/454 (44%)]	Gen Loss: 0.092725 
+Train Epoch: 12 [300/454 (66%)]	Gen Loss: 0.098927 
+Train Epoch: 12 [400/454 (88%)]	Gen Loss: 0.094502 
+==========Epoch 13==========
+Train Epoch: 13 [0/454 (0%)]	Gen Loss: 0.097103 
+Train Epoch: 13 [100/454 (22%)]	Gen Loss: 0.098328 
+Train Epoch: 13 [200/454 (44%)]	Gen Loss: 0.091893 
+Train Epoch: 13 [300/454 (66%)]	Gen Loss: 0.100772 
+Train Epoch: 13 [400/454 (88%)]	Gen Loss: 0.094810 
+==========Epoch 14==========
+Train Epoch: 14 [0/454 (0%)]	Gen Loss: 0.092925 
+Train Epoch: 14 [100/454 (22%)]	Gen Loss: 0.096425 
+Train Epoch: 14 [200/454 (44%)]	Gen Loss: 0.095567 
+Train Epoch: 14 [300/454 (66%)]	Gen Loss: 0.094328 
+Train Epoch: 14 [400/454 (88%)]	Gen Loss: 0.097502 
+==========Epoch 15==========
+Train Epoch: 15 [0/454 (0%)]	Gen Loss: 0.095538 
+Train Epoch: 15 [100/454 (22%)]	Gen Loss: 0.101792 
+Train Epoch: 15 [200/454 (44%)]	Gen Loss: 0.093526 
+Train Epoch: 15 [300/454 (66%)]	Gen Loss: 0.095837 
+Train Epoch: 15 [400/454 (88%)]	Gen Loss: 0.095256 
+==========Epoch 16==========
+Train Epoch: 16 [0/454 (0%)]	Gen Loss: 0.095177 
+Train Epoch: 16 [100/454 (22%)]	Gen Loss: 0.094410 
+Train Epoch: 16 [200/454 (44%)]	Gen Loss: 0.092717 
+Train Epoch: 16 [300/454 (66%)]	Gen Loss: 0.093029 
+Train Epoch: 16 [400/454 (88%)]	Gen Loss: 0.089086 
+==========Epoch 17==========
+Train Epoch: 17 [0/454 (0%)]	Gen Loss: 0.095055 
+Train Epoch: 17 [100/454 (22%)]	Gen Loss: 0.097483 
+Train Epoch: 17 [200/454 (44%)]	Gen Loss: 0.097261 
+Train Epoch: 17 [300/454 (66%)]	Gen Loss: 0.096771 
+Train Epoch: 17 [400/454 (88%)]	Gen Loss: 0.097199 
+==========Epoch 18==========
+Train Epoch: 18 [0/454 (0%)]	Gen Loss: 0.092029 
+Train Epoch: 18 [100/454 (22%)]	Gen Loss: 0.091229 
+Train Epoch: 18 [200/454 (44%)]	Gen Loss: 0.098395 
+Train Epoch: 18 [300/454 (66%)]	Gen Loss: 0.094315 
+Train Epoch: 18 [400/454 (88%)]	Gen Loss: 0.091047 
+==========Epoch 19==========
+Train Epoch: 19 [0/454 (0%)]	Gen Loss: 0.096259 
+Train Epoch: 19 [100/454 (22%)]	Gen Loss: 0.095154 
+Train Epoch: 19 [200/454 (44%)]	Gen Loss: 0.093475 
+Train Epoch: 19 [300/454 (66%)]	Gen Loss: 0.089536 
+Train Epoch: 19 [400/454 (88%)]	Gen Loss: 0.088544 
+==========Epoch 20==========
+Train Epoch: 20 [0/454 (0%)]	Gen Loss: 0.092788 
+Train Epoch: 20 [100/454 (22%)]	Gen Loss: 0.096040 
+Train Epoch: 20 [200/454 (44%)]	Gen Loss: 0.097890 
+Train Epoch: 20 [300/454 (66%)]	Gen Loss: 0.090727 
+Train Epoch: 20 [400/454 (88%)]	Gen Loss: 0.098266 
+==========Epoch 21==========
+Train Epoch: 21 [0/454 (0%)]	Gen Loss: 0.089121 
+Train Epoch: 21 [100/454 (22%)]	Gen Loss: 0.090209 
+Train Epoch: 21 [200/454 (44%)]	Gen Loss: 0.094334 
+Train Epoch: 21 [300/454 (66%)]	Gen Loss: 0.091261 
+Train Epoch: 21 [400/454 (88%)]	Gen Loss: 0.089502 
+==========Epoch 22==========
+Train Epoch: 22 [0/454 (0%)]	Gen Loss: 0.094015 
+Train Epoch: 22 [100/454 (22%)]	Gen Loss: 0.090476 
+Train Epoch: 22 [200/454 (44%)]	Gen Loss: 0.095755 
+Train Epoch: 22 [300/454 (66%)]	Gen Loss: 0.095707 
+Train Epoch: 22 [400/454 (88%)]	Gen Loss: 0.092841 
+==========Epoch 23==========
+Train Epoch: 23 [0/454 (0%)]	Gen Loss: 0.098263 
+Train Epoch: 23 [100/454 (22%)]	Gen Loss: 0.095504 
+Train Epoch: 23 [200/454 (44%)]	Gen Loss: 0.095343 
+Train Epoch: 23 [300/454 (66%)]	Gen Loss: 0.095000 
+Train Epoch: 23 [400/454 (88%)]	Gen Loss: 0.096394 
+==========Epoch 24==========
+Train Epoch: 24 [0/454 (0%)]	Gen Loss: 0.096081 
+Train Epoch: 24 [100/454 (22%)]	Gen Loss: 0.096077 
+Train Epoch: 24 [200/454 (44%)]	Gen Loss: 0.094483 
+Train Epoch: 24 [300/454 (66%)]	Gen Loss: 0.092157 
+Train Epoch: 24 [400/454 (88%)]	Gen Loss: 0.091817 
+==========Epoch 25==========
+Train Epoch: 25 [0/454 (0%)]	Gen Loss: 0.086582 
+Train Epoch: 25 [100/454 (22%)]	Gen Loss: 0.092925 
+Train Epoch: 25 [200/454 (44%)]	Gen Loss: 0.097283 
+Train Epoch: 25 [300/454 (66%)]	Gen Loss: 0.089833 
+Train Epoch: 25 [400/454 (88%)]	Gen Loss: 0.094038 
+==========Epoch 26==========
+Train Epoch: 26 [0/454 (0%)]	Gen Loss: 0.095351 
+Train Epoch: 26 [100/454 (22%)]	Gen Loss: 0.097452 
+Train Epoch: 26 [200/454 (44%)]	Gen Loss: 0.095560 
+Train Epoch: 26 [300/454 (66%)]	Gen Loss: 0.094023 
+Train Epoch: 26 [400/454 (88%)]	Gen Loss: 0.095828 
+==========Epoch 27==========
+Train Epoch: 27 [0/454 (0%)]	Gen Loss: 0.099452 
+Train Epoch: 27 [100/454 (22%)]	Gen Loss: 0.089428 
+Train Epoch: 27 [200/454 (44%)]	Gen Loss: 0.093469 
+Train Epoch: 27 [300/454 (66%)]	Gen Loss: 0.092914 
+Train Epoch: 27 [400/454 (88%)]	Gen Loss: 0.089359 
+==========Epoch 28==========
+Train Epoch: 28 [0/454 (0%)]	Gen Loss: 0.094580 
+Train Epoch: 28 [100/454 (22%)]	Gen Loss: 0.097024 
+Train Epoch: 28 [200/454 (44%)]	Gen Loss: 0.089484 
+Train Epoch: 28 [300/454 (66%)]	Gen Loss: 0.089890 
+Train Epoch: 28 [400/454 (88%)]	Gen Loss: 0.092846 
+==========Epoch 29==========
+Train Epoch: 29 [0/454 (0%)]	Gen Loss: 0.089308 
+Train Epoch: 29 [100/454 (22%)]	Gen Loss: 0.090607 
+Train Epoch: 29 [200/454 (44%)]	Gen Loss: 0.090602 
+Train Epoch: 29 [300/454 (66%)]	Gen Loss: 0.097093 
+Train Epoch: 29 [400/454 (88%)]	Gen Loss: 0.092005 
+==========Epoch 30==========
+Train Epoch: 30 [0/454 (0%)]	Gen Loss: 0.089523 
+Train Epoch: 30 [100/454 (22%)]	Gen Loss: 0.090939 
+Train Epoch: 30 [200/454 (44%)]	Gen Loss: 0.093908 
+Train Epoch: 30 [300/454 (66%)]	Gen Loss: 0.098802 
+Train Epoch: 30 [400/454 (88%)]	Gen Loss: 0.094934 
+==========Epoch 31==========
+Train Epoch: 31 [0/454 (0%)]	Gen Loss: 0.090165 
+Train Epoch: 31 [100/454 (22%)]	Gen Loss: 0.094220 
+Train Epoch: 31 [200/454 (44%)]	Gen Loss: 0.095026 
+Train Epoch: 31 [300/454 (66%)]	Gen Loss: 0.091898 
+Train Epoch: 31 [400/454 (88%)]	Gen Loss: 0.097423 
+==========Epoch 32==========
+Train Epoch: 32 [0/454 (0%)]	Gen Loss: 0.092041 
+Train Epoch: 32 [100/454 (22%)]	Gen Loss: 0.097645 
+Train Epoch: 32 [200/454 (44%)]	Gen Loss: 0.093238 
+Train Epoch: 32 [300/454 (66%)]	Gen Loss: 0.092361 
+Train Epoch: 32 [400/454 (88%)]	Gen Loss: 0.089017 
+==========Epoch 33==========
+Train Epoch: 33 [0/454 (0%)]	Gen Loss: 0.090503 
+Train Epoch: 33 [100/454 (22%)]	Gen Loss: 0.092134 
+Train Epoch: 33 [200/454 (44%)]	Gen Loss: 0.092361 
+Train Epoch: 33 [300/454 (66%)]	Gen Loss: 0.090683 
+Train Epoch: 33 [400/454 (88%)]	Gen Loss: 0.091548 
+==========Epoch 34==========
+Train Epoch: 34 [0/454 (0%)]	Gen Loss: 0.097472 
+Train Epoch: 34 [100/454 (22%)]	Gen Loss: 0.091464 
+Train Epoch: 34 [200/454 (44%)]	Gen Loss: 0.090772 
+Train Epoch: 34 [300/454 (66%)]	Gen Loss: 0.095443 
+Train Epoch: 34 [400/454 (88%)]	Gen Loss: 0.095809 
+==========Epoch 35==========
+Train Epoch: 35 [0/454 (0%)]	Gen Loss: 0.094796 
+Train Epoch: 35 [100/454 (22%)]	Gen Loss: 0.092093 
+Train Epoch: 35 [200/454 (44%)]	Gen Loss: 0.094551 
+Train Epoch: 35 [300/454 (66%)]	Gen Loss: 0.089963 
+Train Epoch: 35 [400/454 (88%)]	Gen Loss: 0.092927 
+==========Epoch 36==========
+Train Epoch: 36 [0/454 (0%)]	Gen Loss: 0.096091 
+Train Epoch: 36 [100/454 (22%)]	Gen Loss: 0.089431 
+Train Epoch: 36 [200/454 (44%)]	Gen Loss: 0.092681 
+Train Epoch: 36 [300/454 (66%)]	Gen Loss: 0.096160 
+Train Epoch: 36 [400/454 (88%)]	Gen Loss: 0.094014 
+==========Epoch 37==========
+Train Epoch: 37 [0/454 (0%)]	Gen Loss: 0.093803 
+Train Epoch: 37 [100/454 (22%)]	Gen Loss: 0.095777 
+Train Epoch: 37 [200/454 (44%)]	Gen Loss: 0.094896 
+Train Epoch: 37 [300/454 (66%)]	Gen Loss: 0.092428 
+Train Epoch: 37 [400/454 (88%)]	Gen Loss: 0.091209 
+==========Epoch 38==========
+Train Epoch: 38 [0/454 (0%)]	Gen Loss: 0.095255 
+Train Epoch: 38 [100/454 (22%)]	Gen Loss: 0.092112 
+Train Epoch: 38 [200/454 (44%)]	Gen Loss: 0.095731 
+Train Epoch: 38 [300/454 (66%)]	Gen Loss: 0.093226 
+Train Epoch: 38 [400/454 (88%)]	Gen Loss: 0.094594 
+==========Epoch 39==========
+Train Epoch: 39 [0/454 (0%)]	Gen Loss: 0.095163 
+Train Epoch: 39 [100/454 (22%)]	Gen Loss: 0.092484 
+Train Epoch: 39 [200/454 (44%)]	Gen Loss: 0.088167 
+Train Epoch: 39 [300/454 (66%)]	Gen Loss: 0.090836 
+Train Epoch: 39 [400/454 (88%)]	Gen Loss: 0.090713 
+==========Epoch 40==========
+Train Epoch: 40 [0/454 (0%)]	Gen Loss: 0.090421 
+Train Epoch: 40 [100/454 (22%)]	Gen Loss: 0.092525 
+Train Epoch: 40 [200/454 (44%)]	Gen Loss: 0.087541 
+Train Epoch: 40 [300/454 (66%)]	Gen Loss: 0.092717 
+Train Epoch: 40 [400/454 (88%)]	Gen Loss: 0.089881 
+==========Epoch 41==========
+Train Epoch: 41 [0/454 (0%)]	Gen Loss: 0.095605 
+Train Epoch: 41 [100/454 (22%)]	Gen Loss: 0.091191 
+Train Epoch: 41 [200/454 (44%)]	Gen Loss: 0.096752 
+Train Epoch: 41 [300/454 (66%)]	Gen Loss: 0.094970 
+Train Epoch: 41 [400/454 (88%)]	Gen Loss: 0.093392 
+==========Epoch 42==========
+Train Epoch: 42 [0/454 (0%)]	Gen Loss: 0.085515 
+Train Epoch: 42 [100/454 (22%)]	Gen Loss: 0.091504 
+Train Epoch: 42 [200/454 (44%)]	Gen Loss: 0.089626 
+Train Epoch: 42 [300/454 (66%)]	Gen Loss: 0.092493 
+Train Epoch: 42 [400/454 (88%)]	Gen Loss: 0.097677 
+==========Epoch 43==========
+Train Epoch: 43 [0/454 (0%)]	Gen Loss: 0.093622 
+Train Epoch: 43 [100/454 (22%)]	Gen Loss: 0.089982 
+Train Epoch: 43 [200/454 (44%)]	Gen Loss: 0.091524 
+Train Epoch: 43 [300/454 (66%)]	Gen Loss: 0.091872 
+Train Epoch: 43 [400/454 (88%)]	Gen Loss: 0.092244 
+==========Epoch 44==========
+Train Epoch: 44 [0/454 (0%)]	Gen Loss: 0.094790 
+Train Epoch: 44 [100/454 (22%)]	Gen Loss: 0.091819 
+Train Epoch: 44 [200/454 (44%)]	Gen Loss: 0.089439 
+Train Epoch: 44 [300/454 (66%)]	Gen Loss: 0.089235 
+Train Epoch: 44 [400/454 (88%)]	Gen Loss: 0.091292 
+==========Epoch 45==========
+Train Epoch: 45 [0/454 (0%)]	Gen Loss: 0.096410 
+Train Epoch: 45 [100/454 (22%)]	Gen Loss: 0.090599 
+Train Epoch: 45 [200/454 (44%)]	Gen Loss: 0.091912 
+Train Epoch: 45 [300/454 (66%)]	Gen Loss: 0.090665 
+Train Epoch: 45 [400/454 (88%)]	Gen Loss: 0.090907 
+==========Epoch 46==========
+Train Epoch: 46 [0/454 (0%)]	Gen Loss: 0.093767 
+Train Epoch: 46 [100/454 (22%)]	Gen Loss: 0.096485 
+Train Epoch: 46 [200/454 (44%)]	Gen Loss: 0.095148 
+Train Epoch: 46 [300/454 (66%)]	Gen Loss: 0.095997 
+Train Epoch: 46 [400/454 (88%)]	Gen Loss: 0.089031 
+==========Epoch 47==========
+Train Epoch: 47 [0/454 (0%)]	Gen Loss: 0.089460 
+Train Epoch: 47 [100/454 (22%)]	Gen Loss: 0.094567 
+Train Epoch: 47 [200/454 (44%)]	Gen Loss: 0.091521 
+Train Epoch: 47 [300/454 (66%)]	Gen Loss: 0.091212 
+Train Epoch: 47 [400/454 (88%)]	Gen Loss: 0.091093 
+==========Epoch 48==========
+Train Epoch: 48 [0/454 (0%)]	Gen Loss: 0.087541 
+Train Epoch: 48 [100/454 (22%)]	Gen Loss: 0.090583 
+Train Epoch: 48 [200/454 (44%)]	Gen Loss: 0.090966 
+Train Epoch: 48 [300/454 (66%)]	Gen Loss: 0.089389 
+Train Epoch: 48 [400/454 (88%)]	Gen Loss: 0.091148 
+==========Epoch 49==========
+Train Epoch: 49 [0/454 (0%)]	Gen Loss: 0.088561 
+Train Epoch: 49 [100/454 (22%)]	Gen Loss: 0.087537 
+Train Epoch: 49 [200/454 (44%)]	Gen Loss: 0.090694 
+Train Epoch: 49 [300/454 (66%)]	Gen Loss: 0.090811 
+Train Epoch: 49 [400/454 (88%)]	Gen Loss: 0.091149 
+==========Epoch 50==========
+Train Epoch: 50 [0/454 (0%)]	Gen Loss: 0.092256 
+Train Epoch: 50 [100/454 (22%)]	Gen Loss: 0.087288 
+Train Epoch: 50 [200/454 (44%)]	Gen Loss: 0.087875 
+Train Epoch: 50 [300/454 (66%)]	Gen Loss: 0.092334 
+Train Epoch: 50 [400/454 (88%)]	Gen Loss: 0.091207 
+==========Epoch 51==========
+Train Epoch: 51 [0/454 (0%)]	Gen Loss: 0.086929 
+Train Epoch: 51 [100/454 (22%)]	Gen Loss: 0.089023 
+Train Epoch: 51 [200/454 (44%)]	Gen Loss: 0.090115 
+Train Epoch: 51 [300/454 (66%)]	Gen Loss: 0.093240 
+Train Epoch: 51 [400/454 (88%)]	Gen Loss: 0.089587 
+==========Epoch 52==========
+Train Epoch: 52 [0/454 (0%)]	Gen Loss: 0.090533 
+Train Epoch: 52 [100/454 (22%)]	Gen Loss: 0.087850 
+Train Epoch: 52 [200/454 (44%)]	Gen Loss: 0.088615 
+Train Epoch: 52 [300/454 (66%)]	Gen Loss: 0.092215 
+Train Epoch: 52 [400/454 (88%)]	Gen Loss: 0.092117 
+==========Epoch 53==========
+Train Epoch: 53 [0/454 (0%)]	Gen Loss: 0.094174 
+Train Epoch: 53 [100/454 (22%)]	Gen Loss: 0.094791 
+Train Epoch: 53 [200/454 (44%)]	Gen Loss: 0.093479 
+Train Epoch: 53 [300/454 (66%)]	Gen Loss: 0.092925 
+Train Epoch: 53 [400/454 (88%)]	Gen Loss: 0.091489 
+==========Epoch 54==========
+Train Epoch: 54 [0/454 (0%)]	Gen Loss: 0.093712 
+Train Epoch: 54 [100/454 (22%)]	Gen Loss: 0.089816 
+Train Epoch: 54 [200/454 (44%)]	Gen Loss: 0.087550 
+Train Epoch: 54 [300/454 (66%)]	Gen Loss: 0.093408 
+Train Epoch: 54 [400/454 (88%)]	Gen Loss: 0.099224 
+==========Epoch 55==========
+Train Epoch: 55 [0/454 (0%)]	Gen Loss: 0.089024 
+Train Epoch: 55 [100/454 (22%)]	Gen Loss: 0.096073 
+Train Epoch: 55 [200/454 (44%)]	Gen Loss: 0.091902 
+Train Epoch: 55 [300/454 (66%)]	Gen Loss: 0.093172 
+Train Epoch: 55 [400/454 (88%)]	Gen Loss: 0.091449 
+==========Epoch 56==========
+Train Epoch: 56 [0/454 (0%)]	Gen Loss: 0.092255 
+Train Epoch: 56 [100/454 (22%)]	Gen Loss: 0.092940 
+Train Epoch: 56 [200/454 (44%)]	Gen Loss: 0.092419 
+Train Epoch: 56 [300/454 (66%)]	Gen Loss: 0.091668 
+Train Epoch: 56 [400/454 (88%)]	Gen Loss: 0.091758 
+==========Epoch 57==========
+Train Epoch: 57 [0/454 (0%)]	Gen Loss: 0.089318 
+Train Epoch: 57 [100/454 (22%)]	Gen Loss: 0.086728 
+Train Epoch: 57 [200/454 (44%)]	Gen Loss: 0.092868 
+Train Epoch: 57 [300/454 (66%)]	Gen Loss: 0.090703 
+Train Epoch: 57 [400/454 (88%)]	Gen Loss: 0.087495 
+==========Epoch 58==========
+Train Epoch: 58 [0/454 (0%)]	Gen Loss: 0.085720 
+Train Epoch: 58 [100/454 (22%)]	Gen Loss: 0.087940 
+Train Epoch: 58 [200/454 (44%)]	Gen Loss: 0.091822 
+Train Epoch: 58 [300/454 (66%)]	Gen Loss: 0.093926 
+Train Epoch: 58 [400/454 (88%)]	Gen Loss: 0.087342 
+==========Epoch 59==========
+Train Epoch: 59 [0/454 (0%)]	Gen Loss: 0.092996 
+Train Epoch: 59 [100/454 (22%)]	Gen Loss: 0.094496 
+Train Epoch: 59 [200/454 (44%)]	Gen Loss: 0.092381 
+Train Epoch: 59 [300/454 (66%)]	Gen Loss: 0.086637 
+Train Epoch: 59 [400/454 (88%)]	Gen Loss: 0.089667 
+==========Epoch 60==========
+Train Epoch: 60 [0/454 (0%)]	Gen Loss: 0.093469 
+Train Epoch: 60 [100/454 (22%)]	Gen Loss: 0.089536 
+Train Epoch: 60 [200/454 (44%)]	Gen Loss: 0.090927 
+Train Epoch: 60 [300/454 (66%)]	Gen Loss: 0.091295 
+Train Epoch: 60 [400/454 (88%)]	Gen Loss: 0.085463 
+==========Epoch 61==========
+Train Epoch: 61 [0/454 (0%)]	Gen Loss: 0.092565 
+Train Epoch: 61 [100/454 (22%)]	Gen Loss: 0.093376 
+Train Epoch: 61 [200/454 (44%)]	Gen Loss: 0.091711 
+Train Epoch: 61 [300/454 (66%)]	Gen Loss: 0.083764 
+Train Epoch: 61 [400/454 (88%)]	Gen Loss: 0.092330 
+==========Epoch 62==========
+Train Epoch: 62 [0/454 (0%)]	Gen Loss: 0.090080 
+Train Epoch: 62 [100/454 (22%)]	Gen Loss: 0.094190 
+Train Epoch: 62 [200/454 (44%)]	Gen Loss: 0.092554 
+Train Epoch: 62 [300/454 (66%)]	Gen Loss: 0.086797 
+Train Epoch: 62 [400/454 (88%)]	Gen Loss: 0.092709 
+==========Epoch 63==========
+Train Epoch: 63 [0/454 (0%)]	Gen Loss: 0.089184 
+Train Epoch: 63 [100/454 (22%)]	Gen Loss: 0.088160 
+Train Epoch: 63 [200/454 (44%)]	Gen Loss: 0.090205 
+Train Epoch: 63 [300/454 (66%)]	Gen Loss: 0.089477 
+Train Epoch: 63 [400/454 (88%)]	Gen Loss: 0.088412 
+==========Epoch 64==========
+Train Epoch: 64 [0/454 (0%)]	Gen Loss: 0.090035 
+Train Epoch: 64 [100/454 (22%)]	Gen Loss: 0.091315 
+Train Epoch: 64 [200/454 (44%)]	Gen Loss: 0.091446 
+Train Epoch: 64 [300/454 (66%)]	Gen Loss: 0.089711 
+Train Epoch: 64 [400/454 (88%)]	Gen Loss: 0.092260 
+==========Epoch 65==========
+Train Epoch: 65 [0/454 (0%)]	Gen Loss: 0.091938 
+Train Epoch: 65 [100/454 (22%)]	Gen Loss: 0.084235 
+Train Epoch: 65 [200/454 (44%)]	Gen Loss: 0.088969 
+Train Epoch: 65 [300/454 (66%)]	Gen Loss: 0.094168 
+Train Epoch: 65 [400/454 (88%)]	Gen Loss: 0.091208 
+==========Epoch 66==========
+Train Epoch: 66 [0/454 (0%)]	Gen Loss: 0.092585 
+Train Epoch: 66 [100/454 (22%)]	Gen Loss: 0.094514 
+Train Epoch: 66 [200/454 (44%)]	Gen Loss: 0.091526 
+Train Epoch: 66 [300/454 (66%)]	Gen Loss: 0.089071 
+Train Epoch: 66 [400/454 (88%)]	Gen Loss: 0.091354 
+==========Epoch 67==========
+Train Epoch: 67 [0/454 (0%)]	Gen Loss: 0.091765 
+Train Epoch: 67 [100/454 (22%)]	Gen Loss: 0.092770 
+Train Epoch: 67 [200/454 (44%)]	Gen Loss: 0.092348 
+Train Epoch: 67 [300/454 (66%)]	Gen Loss: 0.088677 
+Train Epoch: 67 [400/454 (88%)]	Gen Loss: 0.091491 
+==========Epoch 68==========
+Train Epoch: 68 [0/454 (0%)]	Gen Loss: 0.087155 
+Train Epoch: 68 [100/454 (22%)]	Gen Loss: 0.090242 
+Train Epoch: 68 [200/454 (44%)]	Gen Loss: 0.086119 
+Train Epoch: 68 [300/454 (66%)]	Gen Loss: 0.089543 
+Train Epoch: 68 [400/454 (88%)]	Gen Loss: 0.092849 
+==========Epoch 69==========
+Train Epoch: 69 [0/454 (0%)]	Gen Loss: 0.088232 
+Train Epoch: 69 [100/454 (22%)]	Gen Loss: 0.091370 
+Train Epoch: 69 [200/454 (44%)]	Gen Loss: 0.090501 
+Train Epoch: 69 [300/454 (66%)]	Gen Loss: 0.088511 
+Train Epoch: 69 [400/454 (88%)]	Gen Loss: 0.096970 
+==========Epoch 70==========
+Train Epoch: 70 [0/454 (0%)]	Gen Loss: 0.092247 
+Train Epoch: 70 [100/454 (22%)]	Gen Loss: 0.090749 
+Train Epoch: 70 [200/454 (44%)]	Gen Loss: 0.087419 
+Train Epoch: 70 [300/454 (66%)]	Gen Loss: 0.088039 
+Train Epoch: 70 [400/454 (88%)]	Gen Loss: 0.091919 
+==========Epoch 71==========
+Train Epoch: 71 [0/454 (0%)]	Gen Loss: 0.087860 
+Train Epoch: 71 [100/454 (22%)]	Gen Loss: 0.094498 
+Train Epoch: 71 [200/454 (44%)]	Gen Loss: 0.086500 
+Train Epoch: 71 [300/454 (66%)]	Gen Loss: 0.088236 
+Train Epoch: 71 [400/454 (88%)]	Gen Loss: 0.094473 
+==========Epoch 72==========
+Train Epoch: 72 [0/454 (0%)]	Gen Loss: 0.085148 
+Train Epoch: 72 [100/454 (22%)]	Gen Loss: 0.093371 
+Train Epoch: 72 [200/454 (44%)]	Gen Loss: 0.090930 
+Train Epoch: 72 [300/454 (66%)]	Gen Loss: 0.085732 
+Train Epoch: 72 [400/454 (88%)]	Gen Loss: 0.089565 
+==========Epoch 73==========
+Train Epoch: 73 [0/454 (0%)]	Gen Loss: 0.088510 
+Train Epoch: 73 [100/454 (22%)]	Gen Loss: 0.091343 
+Train Epoch: 73 [200/454 (44%)]	Gen Loss: 0.092505 
+Train Epoch: 73 [300/454 (66%)]	Gen Loss: 0.094396 
+Train Epoch: 73 [400/454 (88%)]	Gen Loss: 0.094651 
+==========Epoch 74==========
+Train Epoch: 74 [0/454 (0%)]	Gen Loss: 0.088145 
+Train Epoch: 74 [100/454 (22%)]	Gen Loss: 0.090142 
+Train Epoch: 74 [200/454 (44%)]	Gen Loss: 0.089623 
+Train Epoch: 74 [300/454 (66%)]	Gen Loss: 0.089885 
+Train Epoch: 74 [400/454 (88%)]	Gen Loss: 0.098479 
+==========Epoch 75==========
+Train Epoch: 75 [0/454 (0%)]	Gen Loss: 0.087815 
+Train Epoch: 75 [100/454 (22%)]	Gen Loss: 0.089744 
+Train Epoch: 75 [200/454 (44%)]	Gen Loss: 0.086099 
+Train Epoch: 75 [300/454 (66%)]	Gen Loss: 0.087065 
+Train Epoch: 75 [400/454 (88%)]	Gen Loss: 0.090717 
+==========Epoch 76==========
+Train Epoch: 76 [0/454 (0%)]	Gen Loss: 0.090053 
+Train Epoch: 76 [100/454 (22%)]	Gen Loss: 0.091484 
+Train Epoch: 76 [200/454 (44%)]	Gen Loss: 0.094500 
+Train Epoch: 76 [300/454 (66%)]	Gen Loss: 0.089645 
+Train Epoch: 76 [400/454 (88%)]	Gen Loss: 0.090633 
+==========Epoch 77==========
+Train Epoch: 77 [0/454 (0%)]	Gen Loss: 0.089814 
+Train Epoch: 77 [100/454 (22%)]	Gen Loss: 0.091444 
+Train Epoch: 77 [200/454 (44%)]	Gen Loss: 0.092720 
+Train Epoch: 77 [300/454 (66%)]	Gen Loss: 0.089010 
+Train Epoch: 77 [400/454 (88%)]	Gen Loss: 0.090847 
+==========Epoch 78==========
+Train Epoch: 78 [0/454 (0%)]	Gen Loss: 0.094014 
+Train Epoch: 78 [100/454 (22%)]	Gen Loss: 0.091111 
+Train Epoch: 78 [200/454 (44%)]	Gen Loss: 0.089629 
+Train Epoch: 78 [300/454 (66%)]	Gen Loss: 0.089608 
+Train Epoch: 78 [400/454 (88%)]	Gen Loss: 0.090680 
+==========Epoch 79==========
+Train Epoch: 79 [0/454 (0%)]	Gen Loss: 0.084552 
+Train Epoch: 79 [100/454 (22%)]	Gen Loss: 0.090698 
+Train Epoch: 79 [200/454 (44%)]	Gen Loss: 0.092097 
+Train Epoch: 79 [300/454 (66%)]	Gen Loss: 0.091756 
+Train Epoch: 79 [400/454 (88%)]	Gen Loss: 0.091599 
+==========Epoch 80==========
+Train Epoch: 80 [0/454 (0%)]	Gen Loss: 0.090088 
+Train Epoch: 80 [100/454 (22%)]	Gen Loss: 0.089839 
+Train Epoch: 80 [200/454 (44%)]	Gen Loss: 0.090075 
+Train Epoch: 80 [300/454 (66%)]	Gen Loss: 0.087769 
+Train Epoch: 80 [400/454 (88%)]	Gen Loss: 0.090684 
+==========Epoch 81==========
+Train Epoch: 81 [0/454 (0%)]	Gen Loss: 0.088446 
+Train Epoch: 81 [100/454 (22%)]	Gen Loss: 0.088358 
+Train Epoch: 81 [200/454 (44%)]	Gen Loss: 0.086733 
+Train Epoch: 81 [300/454 (66%)]	Gen Loss: 0.088865 
+Train Epoch: 81 [400/454 (88%)]	Gen Loss: 0.093530 
+==========Epoch 82==========
+Train Epoch: 82 [0/454 (0%)]	Gen Loss: 0.089031 
+Train Epoch: 82 [100/454 (22%)]	Gen Loss: 0.084971 
+Train Epoch: 82 [200/454 (44%)]	Gen Loss: 0.087153 
+Train Epoch: 82 [300/454 (66%)]	Gen Loss: 0.091742 
+Train Epoch: 82 [400/454 (88%)]	Gen Loss: 0.093336 
+==========Epoch 83==========
+Train Epoch: 83 [0/454 (0%)]	Gen Loss: 0.092593 
+Train Epoch: 83 [100/454 (22%)]	Gen Loss: 0.094349 
+Train Epoch: 83 [200/454 (44%)]	Gen Loss: 0.091465 
+Train Epoch: 83 [300/454 (66%)]	Gen Loss: 0.093889 
+Train Epoch: 83 [400/454 (88%)]	Gen Loss: 0.084278 
+==========Epoch 84==========
+Train Epoch: 84 [0/454 (0%)]	Gen Loss: 0.095455 
+Train Epoch: 84 [100/454 (22%)]	Gen Loss: 0.090761 
+Train Epoch: 84 [200/454 (44%)]	Gen Loss: 0.089684 
+Train Epoch: 84 [300/454 (66%)]	Gen Loss: 0.087871 
+Train Epoch: 84 [400/454 (88%)]	Gen Loss: 0.088826 
+==========Epoch 85==========
+Train Epoch: 85 [0/454 (0%)]	Gen Loss: 0.090195 
+Train Epoch: 85 [100/454 (22%)]	Gen Loss: 0.089922 
+Train Epoch: 85 [200/454 (44%)]	Gen Loss: 0.092839 
+Train Epoch: 85 [300/454 (66%)]	Gen Loss: 0.091000 
+Train Epoch: 85 [400/454 (88%)]	Gen Loss: 0.088756 
+==========Epoch 86==========
+Train Epoch: 86 [0/454 (0%)]	Gen Loss: 0.090764 
+Train Epoch: 86 [100/454 (22%)]	Gen Loss: 0.087996 
+Train Epoch: 86 [200/454 (44%)]	Gen Loss: 0.091804 
+Train Epoch: 86 [300/454 (66%)]	Gen Loss: 0.088108 
+Train Epoch: 86 [400/454 (88%)]	Gen Loss: 0.094209 
+==========Epoch 87==========
+Train Epoch: 87 [0/454 (0%)]	Gen Loss: 0.091926 
+Train Epoch: 87 [100/454 (22%)]	Gen Loss: 0.087464 
+Train Epoch: 87 [200/454 (44%)]	Gen Loss: 0.089196 
+Train Epoch: 87 [300/454 (66%)]	Gen Loss: 0.086852 
+Train Epoch: 87 [400/454 (88%)]	Gen Loss: 0.091965 
+==========Epoch 88==========
+Train Epoch: 88 [0/454 (0%)]	Gen Loss: 0.090959 
+Train Epoch: 88 [100/454 (22%)]	Gen Loss: 0.091057 
+Train Epoch: 88 [200/454 (44%)]	Gen Loss: 0.089493 
+Train Epoch: 88 [300/454 (66%)]	Gen Loss: 0.089138 
+Train Epoch: 88 [400/454 (88%)]	Gen Loss: 0.090939 
+==========Epoch 89==========
+Train Epoch: 89 [0/454 (0%)]	Gen Loss: 0.090729 
+Train Epoch: 89 [100/454 (22%)]	Gen Loss: 0.086439 
+Train Epoch: 89 [200/454 (44%)]	Gen Loss: 0.092750 
+Train Epoch: 89 [300/454 (66%)]	Gen Loss: 0.089212 
+Train Epoch: 89 [400/454 (88%)]	Gen Loss: 0.091104 
+==========Epoch 90==========
+Train Epoch: 90 [0/454 (0%)]	Gen Loss: 0.085271 
+Train Epoch: 90 [100/454 (22%)]	Gen Loss: 0.088182 
+Train Epoch: 90 [200/454 (44%)]	Gen Loss: 0.087866 
+Train Epoch: 90 [300/454 (66%)]	Gen Loss: 0.091778 
+Train Epoch: 90 [400/454 (88%)]	Gen Loss: 0.090493 
+==========Epoch 91==========
+Train Epoch: 91 [0/454 (0%)]	Gen Loss: 0.087209 
+Train Epoch: 91 [100/454 (22%)]	Gen Loss: 0.096398 
+Train Epoch: 91 [200/454 (44%)]	Gen Loss: 0.089661 
+Train Epoch: 91 [300/454 (66%)]	Gen Loss: 0.091482 
+Train Epoch: 91 [400/454 (88%)]	Gen Loss: 0.094641 
+==========Epoch 92==========
+Train Epoch: 92 [0/454 (0%)]	Gen Loss: 0.089410 
+Train Epoch: 92 [100/454 (22%)]	Gen Loss: 0.091592 
+Train Epoch: 92 [200/454 (44%)]	Gen Loss: 0.092042 
+Train Epoch: 92 [300/454 (66%)]	Gen Loss: 0.089219 
+Train Epoch: 92 [400/454 (88%)]	Gen Loss: 0.091472 
+==========Epoch 93==========
+Train Epoch: 93 [0/454 (0%)]	Gen Loss: 0.089945 
+Train Epoch: 93 [100/454 (22%)]	Gen Loss: 0.086568 
+Train Epoch: 93 [200/454 (44%)]	Gen Loss: 0.086658 
+Train Epoch: 93 [300/454 (66%)]	Gen Loss: 0.092004 
+Train Epoch: 93 [400/454 (88%)]	Gen Loss: 0.093011 
+==========Epoch 94==========
+Train Epoch: 94 [0/454 (0%)]	Gen Loss: 0.085119 
+Train Epoch: 94 [100/454 (22%)]	Gen Loss: 0.088350 
+Train Epoch: 94 [200/454 (44%)]	Gen Loss: 0.091202 
+Train Epoch: 94 [300/454 (66%)]	Gen Loss: 0.091325 
+Train Epoch: 94 [400/454 (88%)]	Gen Loss: 0.088316 
+==========Epoch 95==========
+Train Epoch: 95 [0/454 (0%)]	Gen Loss: 0.093493 
+Train Epoch: 95 [100/454 (22%)]	Gen Loss: 0.091516 
+Train Epoch: 95 [200/454 (44%)]	Gen Loss: 0.088640 
+Train Epoch: 95 [300/454 (66%)]	Gen Loss: 0.094563 
+Train Epoch: 95 [400/454 (88%)]	Gen Loss: 0.089731 
+==========Epoch 96==========
+Train Epoch: 96 [0/454 (0%)]	Gen Loss: 0.086616 
+Train Epoch: 96 [100/454 (22%)]	Gen Loss: 0.086685 
+Train Epoch: 96 [200/454 (44%)]	Gen Loss: 0.088710 
+Train Epoch: 96 [300/454 (66%)]	Gen Loss: 0.089591 
+Train Epoch: 96 [400/454 (88%)]	Gen Loss: 0.094859 
+==========Epoch 97==========
+Train Epoch: 97 [0/454 (0%)]	Gen Loss: 0.090251 
+Train Epoch: 97 [100/454 (22%)]	Gen Loss: 0.094463 
+Train Epoch: 97 [200/454 (44%)]	Gen Loss: 0.090285 
+Train Epoch: 97 [300/454 (66%)]	Gen Loss: 0.091797 
+Train Epoch: 97 [400/454 (88%)]	Gen Loss: 0.092759 
+==========Epoch 98==========
+Train Epoch: 98 [0/454 (0%)]	Gen Loss: 0.085999 
+Train Epoch: 98 [100/454 (22%)]	Gen Loss: 0.088024 
+Train Epoch: 98 [200/454 (44%)]	Gen Loss: 0.089384 
+Train Epoch: 98 [300/454 (66%)]	Gen Loss: 0.090483 
+Train Epoch: 98 [400/454 (88%)]	Gen Loss: 0.091355 
+==========Epoch 99==========
+Train Epoch: 99 [0/454 (0%)]	Gen Loss: 0.092532 
+Train Epoch: 99 [100/454 (22%)]	Gen Loss: 0.086682 
+Train Epoch: 99 [200/454 (44%)]	Gen Loss: 0.092319 
+Train Epoch: 99 [300/454 (66%)]	Gen Loss: 0.089578 
+Train Epoch: 99 [400/454 (88%)]	Gen Loss: 0.094309 
+==========Epoch 100==========
+Train Epoch: 100 [0/454 (0%)]	Gen Loss: 0.089233 
+Train Epoch: 100 [100/454 (22%)]	Gen Loss: 0.088929 
+Train Epoch: 100 [200/454 (44%)]	Gen Loss: 0.090517 
+Train Epoch: 100 [300/454 (66%)]	Gen Loss: 0.095160 
+Train Epoch: 100 [400/454 (88%)]	Gen Loss: 0.088633 
+==========Epoch 101==========
+Train Epoch: 101 [0/454 (0%)]	Gen Loss: 0.089269 
+Train Epoch: 101 [100/454 (22%)]	Gen Loss: 0.087540 
+Train Epoch: 101 [200/454 (44%)]	Gen Loss: 0.094603 
+Train Epoch: 101 [300/454 (66%)]	Gen Loss: 0.088425 
+Train Epoch: 101 [400/454 (88%)]	Gen Loss: 0.087809 
+==========Epoch 102==========
+Train Epoch: 102 [0/454 (0%)]	Gen Loss: 0.088070 
+Train Epoch: 102 [100/454 (22%)]	Gen Loss: 0.089909 
+Train Epoch: 102 [200/454 (44%)]	Gen Loss: 0.092592 
+Train Epoch: 102 [300/454 (66%)]	Gen Loss: 0.086661 
+Train Epoch: 102 [400/454 (88%)]	Gen Loss: 0.094250 
+==========Epoch 103==========
+Train Epoch: 103 [0/454 (0%)]	Gen Loss: 0.088243 
+Train Epoch: 103 [100/454 (22%)]	Gen Loss: 0.091488 
+Train Epoch: 103 [200/454 (44%)]	Gen Loss: 0.087308 
+Train Epoch: 103 [300/454 (66%)]	Gen Loss: 0.089091 
+Train Epoch: 103 [400/454 (88%)]	Gen Loss: 0.091043 
+==========Epoch 104==========
+Train Epoch: 104 [0/454 (0%)]	Gen Loss: 0.084796 
+Train Epoch: 104 [100/454 (22%)]	Gen Loss: 0.087495 
+Train Epoch: 104 [200/454 (44%)]	Gen Loss: 0.088503 
+Train Epoch: 104 [300/454 (66%)]	Gen Loss: 0.091184 
+Train Epoch: 104 [400/454 (88%)]	Gen Loss: 0.091352 
+==========Epoch 105==========
+Train Epoch: 105 [0/454 (0%)]	Gen Loss: 0.087564 
+Train Epoch: 105 [100/454 (22%)]	Gen Loss: 0.090623 
+Train Epoch: 105 [200/454 (44%)]	Gen Loss: 0.091572 
+Train Epoch: 105 [300/454 (66%)]	Gen Loss: 0.089426 
+Train Epoch: 105 [400/454 (88%)]	Gen Loss: 0.089310 
+==========Epoch 106==========
+Train Epoch: 106 [0/454 (0%)]	Gen Loss: 0.093876 
+Train Epoch: 106 [100/454 (22%)]	Gen Loss: 0.086985 
+Train Epoch: 106 [200/454 (44%)]	Gen Loss: 0.087538 
+Train Epoch: 106 [300/454 (66%)]	Gen Loss: 0.090482 
+Train Epoch: 106 [400/454 (88%)]	Gen Loss: 0.087545 
+==========Epoch 107==========
+Train Epoch: 107 [0/454 (0%)]	Gen Loss: 0.089049 
+Train Epoch: 107 [100/454 (22%)]	Gen Loss: 0.087468 
+Train Epoch: 107 [200/454 (44%)]	Gen Loss: 0.093268 
+Train Epoch: 107 [300/454 (66%)]	Gen Loss: 0.095657 
+Train Epoch: 107 [400/454 (88%)]	Gen Loss: 0.091131 
+==========Epoch 108==========
+Train Epoch: 108 [0/454 (0%)]	Gen Loss: 0.089021 
+Train Epoch: 108 [100/454 (22%)]	Gen Loss: 0.086371 
+Train Epoch: 108 [200/454 (44%)]	Gen Loss: 0.092364 
+Train Epoch: 108 [300/454 (66%)]	Gen Loss: 0.091579 
+Train Epoch: 108 [400/454 (88%)]	Gen Loss: 0.087155 
+==========Epoch 109==========
+Train Epoch: 109 [0/454 (0%)]	Gen Loss: 0.087567 
+Train Epoch: 109 [100/454 (22%)]	Gen Loss: 0.085041 
+Train Epoch: 109 [200/454 (44%)]	Gen Loss: 0.089535 
+Train Epoch: 109 [300/454 (66%)]	Gen Loss: 0.094936 
+Train Epoch: 109 [400/454 (88%)]	Gen Loss: 0.090899 
+==========Epoch 110==========
+Train Epoch: 110 [0/454 (0%)]	Gen Loss: 0.089593 
+Train Epoch: 110 [100/454 (22%)]	Gen Loss: 0.087653 
+Train Epoch: 110 [200/454 (44%)]	Gen Loss: 0.090218 
+Train Epoch: 110 [300/454 (66%)]	Gen Loss: 0.089573 
+Train Epoch: 110 [400/454 (88%)]	Gen Loss: 0.091286 
+==========Epoch 111==========
+Train Epoch: 111 [0/454 (0%)]	Gen Loss: 0.091009 
+Train Epoch: 111 [100/454 (22%)]	Gen Loss: 0.091896 
+Train Epoch: 111 [200/454 (44%)]	Gen Loss: 0.087561 
+Train Epoch: 111 [300/454 (66%)]	Gen Loss: 0.089188 
+Train Epoch: 111 [400/454 (88%)]	Gen Loss: 0.088047 
+==========Epoch 112==========
+Train Epoch: 112 [0/454 (0%)]	Gen Loss: 0.091274 
+Train Epoch: 112 [100/454 (22%)]	Gen Loss: 0.086483 
+Train Epoch: 112 [200/454 (44%)]	Gen Loss: 0.093426 
+Train Epoch: 112 [300/454 (66%)]	Gen Loss: 0.089737 
+Train Epoch: 112 [400/454 (88%)]	Gen Loss: 0.086274 
+==========Epoch 113==========
+Train Epoch: 113 [0/454 (0%)]	Gen Loss: 0.093214 
+Train Epoch: 113 [100/454 (22%)]	Gen Loss: 0.088358 
+Train Epoch: 113 [200/454 (44%)]	Gen Loss: 0.084869 
+Train Epoch: 113 [300/454 (66%)]	Gen Loss: 0.091676 
+Train Epoch: 113 [400/454 (88%)]	Gen Loss: 0.095178 
+==========Epoch 114==========
+Train Epoch: 114 [0/454 (0%)]	Gen Loss: 0.085316 
+Train Epoch: 114 [100/454 (22%)]	Gen Loss: 0.086646 
+Train Epoch: 114 [200/454 (44%)]	Gen Loss: 0.085970 
+Train Epoch: 114 [300/454 (66%)]	Gen Loss: 0.092159 
+Train Epoch: 114 [400/454 (88%)]	Gen Loss: 0.091160 
+==========Epoch 115==========
+Train Epoch: 115 [0/454 (0%)]	Gen Loss: 0.090290 
+Train Epoch: 115 [100/454 (22%)]	Gen Loss: 0.092650 
+Train Epoch: 115 [200/454 (44%)]	Gen Loss: 0.091999 
+Train Epoch: 115 [300/454 (66%)]	Gen Loss: 0.091889 
+Train Epoch: 115 [400/454 (88%)]	Gen Loss: 0.090997 
+==========Epoch 116==========
+Train Epoch: 116 [0/454 (0%)]	Gen Loss: 0.094955 
+Train Epoch: 116 [100/454 (22%)]	Gen Loss: 0.086017 
+Train Epoch: 116 [200/454 (44%)]	Gen Loss: 0.091921 
+Train Epoch: 116 [300/454 (66%)]	Gen Loss: 0.089944 
+Train Epoch: 116 [400/454 (88%)]	Gen Loss: 0.085534 
+==========Epoch 117==========
+Train Epoch: 117 [0/454 (0%)]	Gen Loss: 0.084442 
+Train Epoch: 117 [100/454 (22%)]	Gen Loss: 0.091088 
+Train Epoch: 117 [200/454 (44%)]	Gen Loss: 0.093465 
+Train Epoch: 117 [300/454 (66%)]	Gen Loss: 0.088537 
+Train Epoch: 117 [400/454 (88%)]	Gen Loss: 0.088357 
+==========Epoch 118==========
+Train Epoch: 118 [0/454 (0%)]	Gen Loss: 0.092891 
+Train Epoch: 118 [100/454 (22%)]	Gen Loss: 0.086900 
+Train Epoch: 118 [200/454 (44%)]	Gen Loss: 0.090058 
+Train Epoch: 118 [300/454 (66%)]	Gen Loss: 0.095240 
+Train Epoch: 118 [400/454 (88%)]	Gen Loss: 0.084642 
+==========Epoch 119==========
+Train Epoch: 119 [0/454 (0%)]	Gen Loss: 0.090069 
+Train Epoch: 119 [100/454 (22%)]	Gen Loss: 0.090683 
+Train Epoch: 119 [200/454 (44%)]	Gen Loss: 0.090615 
+Train Epoch: 119 [300/454 (66%)]	Gen Loss: 0.089999 
+Train Epoch: 119 [400/454 (88%)]	Gen Loss: 0.089428 
+==========Epoch 120==========
+Train Epoch: 120 [0/454 (0%)]	Gen Loss: 0.087353 
+Train Epoch: 120 [100/454 (22%)]	Gen Loss: 0.086230 
+Train Epoch: 120 [200/454 (44%)]	Gen Loss: 0.089509 
+Train Epoch: 120 [300/454 (66%)]	Gen Loss: 0.082512 
+Train Epoch: 120 [400/454 (88%)]	Gen Loss: 0.095532 
+==========Epoch 121==========
+Train Epoch: 121 [0/454 (0%)]	Gen Loss: 0.089404 
+Train Epoch: 121 [100/454 (22%)]	Gen Loss: 0.092661 
+Train Epoch: 121 [200/454 (44%)]	Gen Loss: 0.094048 
+Train Epoch: 121 [300/454 (66%)]	Gen Loss: 0.083966 
+Train Epoch: 121 [400/454 (88%)]	Gen Loss: 0.093139 
+==========Epoch 122==========
+Train Epoch: 122 [0/454 (0%)]	Gen Loss: 0.087245 
+Train Epoch: 122 [100/454 (22%)]	Gen Loss: 0.087198 
+Train Epoch: 122 [200/454 (44%)]	Gen Loss: 0.089382 
+Train Epoch: 122 [300/454 (66%)]	Gen Loss: 0.087326 
+Train Epoch: 122 [400/454 (88%)]	Gen Loss: 0.091545 
+==========Epoch 123==========
+Train Epoch: 123 [0/454 (0%)]	Gen Loss: 0.090958 
+Train Epoch: 123 [100/454 (22%)]	Gen Loss: 0.083958 
+Train Epoch: 123 [200/454 (44%)]	Gen Loss: 0.086751 
+Train Epoch: 123 [300/454 (66%)]	Gen Loss: 0.085719 
+Train Epoch: 123 [400/454 (88%)]	Gen Loss: 0.091923 
+==========Epoch 124==========
+Train Epoch: 124 [0/454 (0%)]	Gen Loss: 0.088357 
+Train Epoch: 124 [100/454 (22%)]	Gen Loss: 0.088654 
+Train Epoch: 124 [200/454 (44%)]	Gen Loss: 0.084856 
+Train Epoch: 124 [300/454 (66%)]	Gen Loss: 0.088931 
+Train Epoch: 124 [400/454 (88%)]	Gen Loss: 0.085262 
+==========Epoch 125==========
+Train Epoch: 125 [0/454 (0%)]	Gen Loss: 0.086516 
+Train Epoch: 125 [100/454 (22%)]	Gen Loss: 0.092266 
+Train Epoch: 125 [200/454 (44%)]	Gen Loss: 0.093624 
+Train Epoch: 125 [300/454 (66%)]	Gen Loss: 0.089618 
+Train Epoch: 125 [400/454 (88%)]	Gen Loss: 0.089713 
+==========Epoch 126==========
+Train Epoch: 126 [0/454 (0%)]	Gen Loss: 0.089974 
+Train Epoch: 126 [100/454 (22%)]	Gen Loss: 0.093993 
+Train Epoch: 126 [200/454 (44%)]	Gen Loss: 0.091037 
+Train Epoch: 126 [300/454 (66%)]	Gen Loss: 0.092029 
+Train Epoch: 126 [400/454 (88%)]	Gen Loss: 0.086819 
+==========Epoch 127==========
+Train Epoch: 127 [0/454 (0%)]	Gen Loss: 0.092655 
+Train Epoch: 127 [100/454 (22%)]	Gen Loss: 0.092457 
+Train Epoch: 127 [200/454 (44%)]	Gen Loss: 0.088054 
+Train Epoch: 127 [300/454 (66%)]	Gen Loss: 0.088943 
+Train Epoch: 127 [400/454 (88%)]	Gen Loss: 0.090459 
+==========Epoch 128==========
+Train Epoch: 128 [0/454 (0%)]	Gen Loss: 0.095168 
+Train Epoch: 128 [100/454 (22%)]	Gen Loss: 0.092099 
+Train Epoch: 128 [200/454 (44%)]	Gen Loss: 0.091820 
+Train Epoch: 128 [300/454 (66%)]	Gen Loss: 0.088589 
+Train Epoch: 128 [400/454 (88%)]	Gen Loss: 0.089514 
+==========Epoch 129==========
+Train Epoch: 129 [0/454 (0%)]	Gen Loss: 0.086491 
+Train Epoch: 129 [100/454 (22%)]	Gen Loss: 0.095762 
+Train Epoch: 129 [200/454 (44%)]	Gen Loss: 0.088256 
+Train Epoch: 129 [300/454 (66%)]	Gen Loss: 0.090375 
+Train Epoch: 129 [400/454 (88%)]	Gen Loss: 0.085770 
+==========Epoch 130==========
+Train Epoch: 130 [0/454 (0%)]	Gen Loss: 0.089400 
+Train Epoch: 130 [100/454 (22%)]	Gen Loss: 0.092171 
+Train Epoch: 130 [200/454 (44%)]	Gen Loss: 0.088773 
+Train Epoch: 130 [300/454 (66%)]	Gen Loss: 0.088106 
+Train Epoch: 130 [400/454 (88%)]	Gen Loss: 0.087837 
+==========Epoch 131==========
+Train Epoch: 131 [0/454 (0%)]	Gen Loss: 0.092124 
+Train Epoch: 131 [100/454 (22%)]	Gen Loss: 0.084596 
+Train Epoch: 131 [200/454 (44%)]	Gen Loss: 0.090628 
+Train Epoch: 131 [300/454 (66%)]	Gen Loss: 0.085629 
+Train Epoch: 131 [400/454 (88%)]	Gen Loss: 0.089183 
+==========Epoch 132==========
+Train Epoch: 132 [0/454 (0%)]	Gen Loss: 0.085571 
+Train Epoch: 132 [100/454 (22%)]	Gen Loss: 0.090854 
+Train Epoch: 132 [200/454 (44%)]	Gen Loss: 0.088674 
+Train Epoch: 132 [300/454 (66%)]	Gen Loss: 0.089929 
+Train Epoch: 132 [400/454 (88%)]	Gen Loss: 0.089015 
+==========Epoch 133==========
+Train Epoch: 133 [0/454 (0%)]	Gen Loss: 0.089107 
+Train Epoch: 133 [100/454 (22%)]	Gen Loss: 0.090392 
+Train Epoch: 133 [200/454 (44%)]	Gen Loss: 0.083695 
+Train Epoch: 133 [300/454 (66%)]	Gen Loss: 0.092303 
+Train Epoch: 133 [400/454 (88%)]	Gen Loss: 0.088651 
+==========Epoch 134==========
+Train Epoch: 134 [0/454 (0%)]	Gen Loss: 0.092631 
+Train Epoch: 134 [100/454 (22%)]	Gen Loss: 0.093821 
+Train Epoch: 134 [200/454 (44%)]	Gen Loss: 0.087342 
+Train Epoch: 134 [300/454 (66%)]	Gen Loss: 0.087675 
+Train Epoch: 134 [400/454 (88%)]	Gen Loss: 0.089798 
+==========Epoch 135==========
+Train Epoch: 135 [0/454 (0%)]	Gen Loss: 0.085437 
+Train Epoch: 135 [100/454 (22%)]	Gen Loss: 0.093465 
+Train Epoch: 135 [200/454 (44%)]	Gen Loss: 0.083448 
+Train Epoch: 135 [300/454 (66%)]	Gen Loss: 0.093748 
+Train Epoch: 135 [400/454 (88%)]	Gen Loss: 0.094139 
+==========Epoch 136==========
+Train Epoch: 136 [0/454 (0%)]	Gen Loss: 0.089461 
+Train Epoch: 136 [100/454 (22%)]	Gen Loss: 0.088508 
+Train Epoch: 136 [200/454 (44%)]	Gen Loss: 0.094258 
+Train Epoch: 136 [300/454 (66%)]	Gen Loss: 0.093848 
+Train Epoch: 136 [400/454 (88%)]	Gen Loss: 0.091484 
+==========Epoch 137==========
+Train Epoch: 137 [0/454 (0%)]	Gen Loss: 0.088449 
+Train Epoch: 137 [100/454 (22%)]	Gen Loss: 0.093573 
+Train Epoch: 137 [200/454 (44%)]	Gen Loss: 0.090142 
+Train Epoch: 137 [300/454 (66%)]	Gen Loss: 0.090847 
+Train Epoch: 137 [400/454 (88%)]	Gen Loss: 0.085720 
+==========Epoch 138==========
+Train Epoch: 138 [0/454 (0%)]	Gen Loss: 0.090597 
+Train Epoch: 138 [100/454 (22%)]	Gen Loss: 0.085599 
+Train Epoch: 138 [200/454 (44%)]	Gen Loss: 0.093633 
+Train Epoch: 138 [300/454 (66%)]	Gen Loss: 0.088953 
+Train Epoch: 138 [400/454 (88%)]	Gen Loss: 0.086605 
+==========Epoch 139==========
+Train Epoch: 139 [0/454 (0%)]	Gen Loss: 0.091678 
+Train Epoch: 139 [100/454 (22%)]	Gen Loss: 0.093003 
+Train Epoch: 139 [200/454 (44%)]	Gen Loss: 0.090042 
+Train Epoch: 139 [300/454 (66%)]	Gen Loss: 0.090318 
+Train Epoch: 139 [400/454 (88%)]	Gen Loss: 0.081815 
+==========Epoch 140==========
+Train Epoch: 140 [0/454 (0%)]	Gen Loss: 0.089305 
+Train Epoch: 140 [100/454 (22%)]	Gen Loss: 0.089788 
+Train Epoch: 140 [200/454 (44%)]	Gen Loss: 0.088027 
+Train Epoch: 140 [300/454 (66%)]	Gen Loss: 0.090930 
+Train Epoch: 140 [400/454 (88%)]	Gen Loss: 0.090622 
+==========Epoch 141==========
+Train Epoch: 141 [0/454 (0%)]	Gen Loss: 0.086227 
+Train Epoch: 141 [100/454 (22%)]	Gen Loss: 0.088977 
+Train Epoch: 141 [200/454 (44%)]	Gen Loss: 0.085095 
+Train Epoch: 141 [300/454 (66%)]	Gen Loss: 0.089613 
+Train Epoch: 141 [400/454 (88%)]	Gen Loss: 0.086086 
+==========Epoch 142==========
+Train Epoch: 142 [0/454 (0%)]	Gen Loss: 0.090689 
+Train Epoch: 142 [100/454 (22%)]	Gen Loss: 0.087560 
+Train Epoch: 142 [200/454 (44%)]	Gen Loss: 0.090523 
+Train Epoch: 142 [300/454 (66%)]	Gen Loss: 0.087839 
+Train Epoch: 142 [400/454 (88%)]	Gen Loss: 0.090934 
+==========Epoch 143==========
+Train Epoch: 143 [0/454 (0%)]	Gen Loss: 0.085387 
+Train Epoch: 143 [100/454 (22%)]	Gen Loss: 0.091733 
+Train Epoch: 143 [200/454 (44%)]	Gen Loss: 0.094673 
+Train Epoch: 143 [300/454 (66%)]	Gen Loss: 0.091244 
+Train Epoch: 143 [400/454 (88%)]	Gen Loss: 0.088814 
+==========Epoch 144==========
+Train Epoch: 144 [0/454 (0%)]	Gen Loss: 0.089703 
+Train Epoch: 144 [100/454 (22%)]	Gen Loss: 0.091268 
+Train Epoch: 144 [200/454 (44%)]	Gen Loss: 0.088810 
+Train Epoch: 144 [300/454 (66%)]	Gen Loss: 0.084615 
+Train Epoch: 144 [400/454 (88%)]	Gen Loss: 0.085108 
+==========Epoch 145==========
+Train Epoch: 145 [0/454 (0%)]	Gen Loss: 0.091789 
+Train Epoch: 145 [100/454 (22%)]	Gen Loss: 0.090080 
+Train Epoch: 145 [200/454 (44%)]	Gen Loss: 0.092322 
+Train Epoch: 145 [300/454 (66%)]	Gen Loss: 0.091624 
+Train Epoch: 145 [400/454 (88%)]	Gen Loss: 0.086807 
+==========Epoch 146==========
+Train Epoch: 146 [0/454 (0%)]	Gen Loss: 0.091038 
+Train Epoch: 146 [100/454 (22%)]	Gen Loss: 0.086870 
+Train Epoch: 146 [200/454 (44%)]	Gen Loss: 0.088819 
+Train Epoch: 146 [300/454 (66%)]	Gen Loss: 0.084267 
+Train Epoch: 146 [400/454 (88%)]	Gen Loss: 0.087550 
+==========Epoch 147==========
+Train Epoch: 147 [0/454 (0%)]	Gen Loss: 0.091482 
+Train Epoch: 147 [100/454 (22%)]	Gen Loss: 0.092697 
+Train Epoch: 147 [200/454 (44%)]	Gen Loss: 0.091321 
+Train Epoch: 147 [300/454 (66%)]	Gen Loss: 0.091386 
+Train Epoch: 147 [400/454 (88%)]	Gen Loss: 0.089311 
+==========Epoch 148==========
+Train Epoch: 148 [0/454 (0%)]	Gen Loss: 0.092843 
+Train Epoch: 148 [100/454 (22%)]	Gen Loss: 0.085921 
+Train Epoch: 148 [200/454 (44%)]	Gen Loss: 0.090968 
+Train Epoch: 148 [300/454 (66%)]	Gen Loss: 0.085613 
+Train Epoch: 148 [400/454 (88%)]	Gen Loss: 0.087091 
+==========Epoch 149==========
+Train Epoch: 149 [0/454 (0%)]	Gen Loss: 0.088087 
+Train Epoch: 149 [100/454 (22%)]	Gen Loss: 0.090754 
+Train Epoch: 149 [200/454 (44%)]	Gen Loss: 0.089153 
+Train Epoch: 149 [300/454 (66%)]	Gen Loss: 0.088222 
+Train Epoch: 149 [400/454 (88%)]	Gen Loss: 0.087159 
+==========Epoch 150==========
+Train Epoch: 150 [0/454 (0%)]	Gen Loss: 0.086231 
+Train Epoch: 150 [100/454 (22%)]	Gen Loss: 0.089164 
+Train Epoch: 150 [200/454 (44%)]	Gen Loss: 0.085601 
+Train Epoch: 150 [300/454 (66%)]	Gen Loss: 0.083165 
+Train Epoch: 150 [400/454 (88%)]	Gen Loss: 0.093368 
+==========Epoch 151==========
+Train Epoch: 151 [0/454 (0%)]	Gen Loss: 0.091326 
+Train Epoch: 151 [100/454 (22%)]	Gen Loss: 0.088850 
+Train Epoch: 151 [200/454 (44%)]	Gen Loss: 0.087655 
+Train Epoch: 151 [300/454 (66%)]	Gen Loss: 0.090743 
+Train Epoch: 151 [400/454 (88%)]	Gen Loss: 0.089291 
+==========Epoch 152==========
+Train Epoch: 152 [0/454 (0%)]	Gen Loss: 0.083123 
+Train Epoch: 152 [100/454 (22%)]	Gen Loss: 0.083311 
+Train Epoch: 152 [200/454 (44%)]	Gen Loss: 0.085978 
+Train Epoch: 152 [300/454 (66%)]	Gen Loss: 0.093878 
+Train Epoch: 152 [400/454 (88%)]	Gen Loss: 0.088909 
+==========Epoch 153==========
+Train Epoch: 153 [0/454 (0%)]	Gen Loss: 0.089322 
+Train Epoch: 153 [100/454 (22%)]	Gen Loss: 0.084979 
+Train Epoch: 153 [200/454 (44%)]	Gen Loss: 0.088081 
+Train Epoch: 153 [300/454 (66%)]	Gen Loss: 0.088824 
+Train Epoch: 153 [400/454 (88%)]	Gen Loss: 0.084908 
+==========Epoch 154==========
+Train Epoch: 154 [0/454 (0%)]	Gen Loss: 0.090014 
+Train Epoch: 154 [100/454 (22%)]	Gen Loss: 0.091020 
+Train Epoch: 154 [200/454 (44%)]	Gen Loss: 0.088106 
+Train Epoch: 154 [300/454 (66%)]	Gen Loss: 0.084301 
+Train Epoch: 154 [400/454 (88%)]	Gen Loss: 0.091298 
+==========Epoch 155==========
+Train Epoch: 155 [0/454 (0%)]	Gen Loss: 0.087002 
+Train Epoch: 155 [100/454 (22%)]	Gen Loss: 0.093187 
+Train Epoch: 155 [200/454 (44%)]	Gen Loss: 0.086311 
+Train Epoch: 155 [300/454 (66%)]	Gen Loss: 0.088517 
+Train Epoch: 155 [400/454 (88%)]	Gen Loss: 0.087006 
+==========Epoch 156==========
+Train Epoch: 156 [0/454 (0%)]	Gen Loss: 0.091707 
+Train Epoch: 156 [100/454 (22%)]	Gen Loss: 0.092079 
+Train Epoch: 156 [200/454 (44%)]	Gen Loss: 0.095078 
+Train Epoch: 156 [300/454 (66%)]	Gen Loss: 0.092928 
+Train Epoch: 156 [400/454 (88%)]	Gen Loss: 0.088936 
+==========Epoch 157==========
+Train Epoch: 157 [0/454 (0%)]	Gen Loss: 0.089396 
+Train Epoch: 157 [100/454 (22%)]	Gen Loss: 0.088343 
+Train Epoch: 157 [200/454 (44%)]	Gen Loss: 0.087660 
+Train Epoch: 157 [300/454 (66%)]	Gen Loss: 0.087608 
+Train Epoch: 157 [400/454 (88%)]	Gen Loss: 0.088114 
+==========Epoch 158==========
+Train Epoch: 158 [0/454 (0%)]	Gen Loss: 0.093223 
+Train Epoch: 158 [100/454 (22%)]	Gen Loss: 0.090883 
+Train Epoch: 158 [200/454 (44%)]	Gen Loss: 0.086513 
+Train Epoch: 158 [300/454 (66%)]	Gen Loss: 0.086626 
+Train Epoch: 158 [400/454 (88%)]	Gen Loss: 0.089984 
+==========Epoch 159==========
+Train Epoch: 159 [0/454 (0%)]	Gen Loss: 0.085722 
+Train Epoch: 159 [100/454 (22%)]	Gen Loss: 0.088153 
+Train Epoch: 159 [200/454 (44%)]	Gen Loss: 0.094255 
+Train Epoch: 159 [300/454 (66%)]	Gen Loss: 0.086602 
+Train Epoch: 159 [400/454 (88%)]	Gen Loss: 0.092678 
+==========Epoch 160==========
+Train Epoch: 160 [0/454 (0%)]	Gen Loss: 0.085916 
+Train Epoch: 160 [100/454 (22%)]	Gen Loss: 0.087574 
+Train Epoch: 160 [200/454 (44%)]	Gen Loss: 0.088806 
+Train Epoch: 160 [300/454 (66%)]	Gen Loss: 0.086994 
+Train Epoch: 160 [400/454 (88%)]	Gen Loss: 0.088281 
+==========Epoch 161==========
+Train Epoch: 161 [0/454 (0%)]	Gen Loss: 0.089173 
+Train Epoch: 161 [100/454 (22%)]	Gen Loss: 0.094238 
+Train Epoch: 161 [200/454 (44%)]	Gen Loss: 0.087382 
+Train Epoch: 161 [300/454 (66%)]	Gen Loss: 0.091114 
+Train Epoch: 161 [400/454 (88%)]	Gen Loss: 0.088852 
+==========Epoch 162==========
+Train Epoch: 162 [0/454 (0%)]	Gen Loss: 0.086997 
+Train Epoch: 162 [100/454 (22%)]	Gen Loss: 0.089395 
+Train Epoch: 162 [200/454 (44%)]	Gen Loss: 0.090472 
+Train Epoch: 162 [300/454 (66%)]	Gen Loss: 0.086234 
+Train Epoch: 162 [400/454 (88%)]	Gen Loss: 0.087379 
+==========Epoch 163==========
+Train Epoch: 163 [0/454 (0%)]	Gen Loss: 0.087966 
+Train Epoch: 163 [100/454 (22%)]	Gen Loss: 0.087275 
+Train Epoch: 163 [200/454 (44%)]	Gen Loss: 0.091594 
+Train Epoch: 163 [300/454 (66%)]	Gen Loss: 0.087390 
+Train Epoch: 163 [400/454 (88%)]	Gen Loss: 0.087808 
+==========Epoch 164==========
+Train Epoch: 164 [0/454 (0%)]	Gen Loss: 0.084344 
+Train Epoch: 164 [100/454 (22%)]	Gen Loss: 0.092507 
+Train Epoch: 164 [200/454 (44%)]	Gen Loss: 0.094803 
+Train Epoch: 164 [300/454 (66%)]	Gen Loss: 0.088087 
+Train Epoch: 164 [400/454 (88%)]	Gen Loss: 0.092999 
+==========Epoch 165==========
+Train Epoch: 165 [0/454 (0%)]	Gen Loss: 0.088717 
+Train Epoch: 165 [100/454 (22%)]	Gen Loss: 0.088968 
+Train Epoch: 165 [200/454 (44%)]	Gen Loss: 0.088039 
+Train Epoch: 165 [300/454 (66%)]	Gen Loss: 0.091552 
+Train Epoch: 165 [400/454 (88%)]	Gen Loss: 0.088535 
+==========Epoch 166==========
+Train Epoch: 166 [0/454 (0%)]	Gen Loss: 0.088707 
+Train Epoch: 166 [100/454 (22%)]	Gen Loss: 0.086885 
+Train Epoch: 166 [200/454 (44%)]	Gen Loss: 0.085632 
+Train Epoch: 166 [300/454 (66%)]	Gen Loss: 0.085250 
+Train Epoch: 166 [400/454 (88%)]	Gen Loss: 0.089719 
+==========Epoch 167==========
+Train Epoch: 167 [0/454 (0%)]	Gen Loss: 0.092857 
+Train Epoch: 167 [100/454 (22%)]	Gen Loss: 0.086159 
+Train Epoch: 167 [200/454 (44%)]	Gen Loss: 0.081800 
+Train Epoch: 167 [300/454 (66%)]	Gen Loss: 0.092433 
+Train Epoch: 167 [400/454 (88%)]	Gen Loss: 0.087407 
+==========Epoch 168==========
+Train Epoch: 168 [0/454 (0%)]	Gen Loss: 0.085783 
+Train Epoch: 168 [100/454 (22%)]	Gen Loss: 0.084334 
+Train Epoch: 168 [200/454 (44%)]	Gen Loss: 0.090808 
+Train Epoch: 168 [300/454 (66%)]	Gen Loss: 0.089347 
+Train Epoch: 168 [400/454 (88%)]	Gen Loss: 0.091539 
+==========Epoch 169==========
+Train Epoch: 169 [0/454 (0%)]	Gen Loss: 0.088324 
+Train Epoch: 169 [100/454 (22%)]	Gen Loss: 0.091084 
+Train Epoch: 169 [200/454 (44%)]	Gen Loss: 0.089596 
+Train Epoch: 169 [300/454 (66%)]	Gen Loss: 0.088681 
+Train Epoch: 169 [400/454 (88%)]	Gen Loss: 0.087612 
+==========Epoch 170==========
+Train Epoch: 170 [0/454 (0%)]	Gen Loss: 0.083571 
+Train Epoch: 170 [100/454 (22%)]	Gen Loss: 0.089664 
+Train Epoch: 170 [200/454 (44%)]	Gen Loss: 0.089915 
+Train Epoch: 170 [300/454 (66%)]	Gen Loss: 0.089770 
+Train Epoch: 170 [400/454 (88%)]	Gen Loss: 0.088547 
+==========Epoch 171==========
+Train Epoch: 171 [0/454 (0%)]	Gen Loss: 0.090024 
+Train Epoch: 171 [100/454 (22%)]	Gen Loss: 0.090746 
+Train Epoch: 171 [200/454 (44%)]	Gen Loss: 0.095006 
+Train Epoch: 171 [300/454 (66%)]	Gen Loss: 0.089608 
+Train Epoch: 171 [400/454 (88%)]	Gen Loss: 0.092559 
+==========Epoch 172==========
+Train Epoch: 172 [0/454 (0%)]	Gen Loss: 0.082059 
+Train Epoch: 172 [100/454 (22%)]	Gen Loss: 0.095355 
+Train Epoch: 172 [200/454 (44%)]	Gen Loss: 0.086672 
+Train Epoch: 172 [300/454 (66%)]	Gen Loss: 0.087157 
+Train Epoch: 172 [400/454 (88%)]	Gen Loss: 0.090221 
+==========Epoch 173==========
+Train Epoch: 173 [0/454 (0%)]	Gen Loss: 0.085940 
+Train Epoch: 173 [100/454 (22%)]	Gen Loss: 0.088691 
+Train Epoch: 173 [200/454 (44%)]	Gen Loss: 0.088697 
+Train Epoch: 173 [300/454 (66%)]	Gen Loss: 0.084833 
+Train Epoch: 173 [400/454 (88%)]	Gen Loss: 0.088841 
+==========Epoch 174==========
+Train Epoch: 174 [0/454 (0%)]	Gen Loss: 0.087681 
+Train Epoch: 174 [100/454 (22%)]	Gen Loss: 0.086536 
+Train Epoch: 174 [200/454 (44%)]	Gen Loss: 0.089599 
+Train Epoch: 174 [300/454 (66%)]	Gen Loss: 0.089013 
+Train Epoch: 174 [400/454 (88%)]	Gen Loss: 0.087678 
+==========Epoch 175==========
+Train Epoch: 175 [0/454 (0%)]	Gen Loss: 0.090126 
+Train Epoch: 175 [100/454 (22%)]	Gen Loss: 0.086039 
+Train Epoch: 175 [200/454 (44%)]	Gen Loss: 0.086636 
+Train Epoch: 175 [300/454 (66%)]	Gen Loss: 0.088876 
+Train Epoch: 175 [400/454 (88%)]	Gen Loss: 0.094775 
+==========Epoch 176==========
+Train Epoch: 176 [0/454 (0%)]	Gen Loss: 0.087885 
+Train Epoch: 176 [100/454 (22%)]	Gen Loss: 0.091615 
+Train Epoch: 176 [200/454 (44%)]	Gen Loss: 0.090576 
+Train Epoch: 176 [300/454 (66%)]	Gen Loss: 0.088091 
+Train Epoch: 176 [400/454 (88%)]	Gen Loss: 0.088859 
+==========Epoch 177==========
+Train Epoch: 177 [0/454 (0%)]	Gen Loss: 0.086409 
+Train Epoch: 177 [100/454 (22%)]	Gen Loss: 0.090313 
+Train Epoch: 177 [200/454 (44%)]	Gen Loss: 0.093138 
+Train Epoch: 177 [300/454 (66%)]	Gen Loss: 0.088491 
+Train Epoch: 177 [400/454 (88%)]	Gen Loss: 0.093274 
+==========Epoch 178==========
+Train Epoch: 178 [0/454 (0%)]	Gen Loss: 0.094419 
+Train Epoch: 178 [100/454 (22%)]	Gen Loss: 0.091066 
+Train Epoch: 178 [200/454 (44%)]	Gen Loss: 0.087777 
+Train Epoch: 178 [300/454 (66%)]	Gen Loss: 0.086060 
+Train Epoch: 178 [400/454 (88%)]	Gen Loss: 0.086831 
+==========Epoch 179==========
+Train Epoch: 179 [0/454 (0%)]	Gen Loss: 0.088397 
+Train Epoch: 179 [100/454 (22%)]	Gen Loss: 0.085294 
+Train Epoch: 179 [200/454 (44%)]	Gen Loss: 0.087713 
+Train Epoch: 179 [300/454 (66%)]	Gen Loss: 0.085661 
+Train Epoch: 179 [400/454 (88%)]	Gen Loss: 0.082260 
+==========Epoch 180==========
+Train Epoch: 180 [0/454 (0%)]	Gen Loss: 0.095910 
+Train Epoch: 180 [100/454 (22%)]	Gen Loss: 0.090134 
+Train Epoch: 180 [200/454 (44%)]	Gen Loss: 0.089431 
+Train Epoch: 180 [300/454 (66%)]	Gen Loss: 0.086356 
+Train Epoch: 180 [400/454 (88%)]	Gen Loss: 0.087401 
+==========Epoch 181==========
+Train Epoch: 181 [0/454 (0%)]	Gen Loss: 0.091221 
+Train Epoch: 181 [100/454 (22%)]	Gen Loss: 0.089885 
+Train Epoch: 181 [200/454 (44%)]	Gen Loss: 0.090939 
+Train Epoch: 181 [300/454 (66%)]	Gen Loss: 0.088270 
+Train Epoch: 181 [400/454 (88%)]	Gen Loss: 0.091662 
+==========Epoch 182==========
+Train Epoch: 182 [0/454 (0%)]	Gen Loss: 0.089345 
+Train Epoch: 182 [100/454 (22%)]	Gen Loss: 0.086453 
+Train Epoch: 182 [200/454 (44%)]	Gen Loss: 0.086931 
+Train Epoch: 182 [300/454 (66%)]	Gen Loss: 0.085681 
+Train Epoch: 182 [400/454 (88%)]	Gen Loss: 0.091233 
+==========Epoch 183==========
+Train Epoch: 183 [0/454 (0%)]	Gen Loss: 0.090930 
+Train Epoch: 183 [100/454 (22%)]	Gen Loss: 0.089781 
+Train Epoch: 183 [200/454 (44%)]	Gen Loss: 0.087009 
+Train Epoch: 183 [300/454 (66%)]	Gen Loss: 0.089053 
+Train Epoch: 183 [400/454 (88%)]	Gen Loss: 0.091800 
+==========Epoch 184==========
+Train Epoch: 184 [0/454 (0%)]	Gen Loss: 0.091107 
+Train Epoch: 184 [100/454 (22%)]	Gen Loss: 0.090158 
+Train Epoch: 184 [200/454 (44%)]	Gen Loss: 0.087594 
+Train Epoch: 184 [300/454 (66%)]	Gen Loss: 0.088780 
+Train Epoch: 184 [400/454 (88%)]	Gen Loss: 0.087546 
+==========Epoch 185==========
+Train Epoch: 185 [0/454 (0%)]	Gen Loss: 0.086230 
+Train Epoch: 185 [100/454 (22%)]	Gen Loss: 0.090525 
+Train Epoch: 185 [200/454 (44%)]	Gen Loss: 0.090696 
+Train Epoch: 185 [300/454 (66%)]	Gen Loss: 0.083524 
+Train Epoch: 185 [400/454 (88%)]	Gen Loss: 0.087714 
+==========Epoch 186==========
+Train Epoch: 186 [0/454 (0%)]	Gen Loss: 0.090234 
+Train Epoch: 186 [100/454 (22%)]	Gen Loss: 0.092586 
+Train Epoch: 186 [200/454 (44%)]	Gen Loss: 0.092973 
+Train Epoch: 186 [300/454 (66%)]	Gen Loss: 0.085807 
+Train Epoch: 186 [400/454 (88%)]	Gen Loss: 0.089029 
+==========Epoch 187==========
+Train Epoch: 187 [0/454 (0%)]	Gen Loss: 0.087465 
+Train Epoch: 187 [100/454 (22%)]	Gen Loss: 0.092031 
+Train Epoch: 187 [200/454 (44%)]	Gen Loss: 0.085497 
+Train Epoch: 187 [300/454 (66%)]	Gen Loss: 0.088238 
+Train Epoch: 187 [400/454 (88%)]	Gen Loss: 0.095596 
+==========Epoch 188==========
+Train Epoch: 188 [0/454 (0%)]	Gen Loss: 0.089295 
+Train Epoch: 188 [100/454 (22%)]	Gen Loss: 0.090813 
+Train Epoch: 188 [200/454 (44%)]	Gen Loss: 0.092872 
+Train Epoch: 188 [300/454 (66%)]	Gen Loss: 0.089311 
+Train Epoch: 188 [400/454 (88%)]	Gen Loss: 0.091786 
+==========Epoch 189==========
+Train Epoch: 189 [0/454 (0%)]	Gen Loss: 0.088631 
+Train Epoch: 189 [100/454 (22%)]	Gen Loss: 0.085202 
+Train Epoch: 189 [200/454 (44%)]	Gen Loss: 0.084463 
+Train Epoch: 189 [300/454 (66%)]	Gen Loss: 0.089383 
+Train Epoch: 189 [400/454 (88%)]	Gen Loss: 0.087459 
+==========Epoch 190==========
+Train Epoch: 190 [0/454 (0%)]	Gen Loss: 0.087537 
+Train Epoch: 190 [100/454 (22%)]	Gen Loss: 0.088245 
+Train Epoch: 190 [200/454 (44%)]	Gen Loss: 0.086014 
+Train Epoch: 190 [300/454 (66%)]	Gen Loss: 0.086647 
+Train Epoch: 190 [400/454 (88%)]	Gen Loss: 0.088929 
+==========Epoch 191==========
+Train Epoch: 191 [0/454 (0%)]	Gen Loss: 0.085257 
+Train Epoch: 191 [100/454 (22%)]	Gen Loss: 0.086735 
+Train Epoch: 191 [200/454 (44%)]	Gen Loss: 0.085105 
+Train Epoch: 191 [300/454 (66%)]	Gen Loss: 0.091365 
+Train Epoch: 191 [400/454 (88%)]	Gen Loss: 0.091992 
+==========Epoch 192==========
+Train Epoch: 192 [0/454 (0%)]	Gen Loss: 0.086412 
+Train Epoch: 192 [100/454 (22%)]	Gen Loss: 0.089234 
+Train Epoch: 192 [200/454 (44%)]	Gen Loss: 0.094251 
+Train Epoch: 192 [300/454 (66%)]	Gen Loss: 0.090242 
+Train Epoch: 192 [400/454 (88%)]	Gen Loss: 0.089499 
+==========Epoch 193==========
+Train Epoch: 193 [0/454 (0%)]	Gen Loss: 0.092757 
+Train Epoch: 193 [100/454 (22%)]	Gen Loss: 0.094469 
+Train Epoch: 193 [200/454 (44%)]	Gen Loss: 0.088832 
+Train Epoch: 193 [300/454 (66%)]	Gen Loss: 0.092385 
+Train Epoch: 193 [400/454 (88%)]	Gen Loss: 0.091022 
+==========Epoch 194==========
+Train Epoch: 194 [0/454 (0%)]	Gen Loss: 0.087462 
+Train Epoch: 194 [100/454 (22%)]	Gen Loss: 0.088667 
+Train Epoch: 194 [200/454 (44%)]	Gen Loss: 0.086884 
+Train Epoch: 194 [300/454 (66%)]	Gen Loss: 0.092496 
+Train Epoch: 194 [400/454 (88%)]	Gen Loss: 0.090771 
+==========Epoch 195==========
+Train Epoch: 195 [0/454 (0%)]	Gen Loss: 0.086985 
+Train Epoch: 195 [100/454 (22%)]	Gen Loss: 0.084130 
+Train Epoch: 195 [200/454 (44%)]	Gen Loss: 0.086565 
+Train Epoch: 195 [300/454 (66%)]	Gen Loss: 0.084471 
+Train Epoch: 195 [400/454 (88%)]	Gen Loss: 0.089687 
+==========Epoch 196==========
+Train Epoch: 196 [0/454 (0%)]	Gen Loss: 0.083109 
+Train Epoch: 196 [100/454 (22%)]	Gen Loss: 0.089054 
+Train Epoch: 196 [200/454 (44%)]	Gen Loss: 0.089533 
+Train Epoch: 196 [300/454 (66%)]	Gen Loss: 0.086780 
+Train Epoch: 196 [400/454 (88%)]	Gen Loss: 0.088131 
+==========Epoch 197==========
+Train Epoch: 197 [0/454 (0%)]	Gen Loss: 0.087452 
+Train Epoch: 197 [100/454 (22%)]	Gen Loss: 0.088690 
+Train Epoch: 197 [200/454 (44%)]	Gen Loss: 0.092292 
+Train Epoch: 197 [300/454 (66%)]	Gen Loss: 0.087248 
+Train Epoch: 197 [400/454 (88%)]	Gen Loss: 0.090262 
+==========Epoch 198==========
+Train Epoch: 198 [0/454 (0%)]	Gen Loss: 0.085688 
+Train Epoch: 198 [100/454 (22%)]	Gen Loss: 0.088269 
+Train Epoch: 198 [200/454 (44%)]	Gen Loss: 0.090337 
+Train Epoch: 198 [300/454 (66%)]	Gen Loss: 0.088288 
+Train Epoch: 198 [400/454 (88%)]	Gen Loss: 0.088500 
+==========Epoch 199==========
+Train Epoch: 199 [0/454 (0%)]	Gen Loss: 0.087597 
+Train Epoch: 199 [100/454 (22%)]	Gen Loss: 0.084078 
+Train Epoch: 199 [200/454 (44%)]	Gen Loss: 0.089874 
+Train Epoch: 199 [300/454 (66%)]	Gen Loss: 0.086721 
+Train Epoch: 199 [400/454 (88%)]	Gen Loss: 0.087933 
+18759.35851764679

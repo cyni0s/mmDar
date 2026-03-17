@@ -1,0 +1,9 @@
+{
+  "experiment": "baseline_5090_adapted_legacy_cartesian",
+  "source_experiment": "baseline_5090_adapted",
+  "run_dir": "logs/baseline_2_20260226-025108",
+  "evaluation_only": true,
+  "coordinate_mode": "legacy_cartesian",
+  "pointcloud_threshold": 1,
+  "notes": "Re-evaluation of 5090-adapted training outputs using legacy pol_to_cart + point-cloud conversion flow for paper-comparable metrics."
+}

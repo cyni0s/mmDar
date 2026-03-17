@@ -37,17 +37,57 @@ RBINS = 256
 ABINS = 512
 MIN_THRESHOLD = 1
 MAX_THRESHOLD = 255
+COORD_MODE_LEGACY = "legacy_cartesian"
+COORD_MODE_DIRECT = "polar_direct"
+VALID_COORD_MODES = {COORD_MODE_LEGACY, COORD_MODE_DIRECT}
 
 # Pre-compute coordinate grids (module-level, computed once)
 _x_axis_grid = np.linspace(0, RMAX, RBINS)   # shape (256,)  — range axis
 _y_axis_grid = np.linspace(-RMAX, RMAX, ABINS)  # shape (512,) — azimuth axis
 
+# Legacy pol_to_cart mapping grids (must match eval/pol_to_cart.py)
+_agrid = np.linspace(-90, 90, ABINS)
+_rgrid = np.linspace(0, RMAX, RBINS)
+_singrid = np.sin(_agrid * np.pi / 180)
+_sine_theta, _range_d = np.meshgrid(_singrid, _rgrid)
+_cos_theta = np.sqrt(1 - _sine_theta**2)
+_legacy_x_axis = np.multiply(_range_d, _cos_theta)
+_legacy_y_axis = np.multiply(_range_d, _sine_theta)
+
 # ---------------------------------------------------------------------------
 # Coordinate-space conversion
 # ---------------------------------------------------------------------------
 
+def _to_uint8(img: np.ndarray) -> np.ndarray:
+    if img.dtype != np.uint8:
+        return np.clip(img, 0, 255).astype(np.uint8)
+    return img
+
+
+def polar_to_cartesian_legacy(img: np.ndarray) -> np.ndarray:
+    """Apply legacy polar->cartesian remapping from eval/pol_to_cart.py."""
+    img_u8 = _to_uint8(img)
+    cart = np.zeros((RBINS, ABINS), dtype=np.uint8)
+    nonzero_loc = np.argwhere(img_u8 > 0)
+    if nonzero_loc.size == 0:
+        return cart
+
+    row_idx = nonzero_loc[:, 0]
+    col_idx = nonzero_loc[:, 1]
+    x_vals = _legacy_x_axis[row_idx, col_idx]
+    y_vals = _legacy_y_axis[row_idx, col_idx]
+
+    new_row_idx = np.searchsorted(_x_axis_grid, x_vals, side="left")
+    new_col_idx = np.searchsorted(_y_axis_grid, y_vals, side="left")
+    new_row_idx = np.clip(new_row_idx, 0, RBINS - 1)
+    new_col_idx = np.clip(new_col_idx, 0, ABINS - 1)
+    cart[new_row_idx, new_col_idx] = img_u8[row_idx, col_idx]
+    return cart
+
+
 def polar_image_to_pointcloud(img: np.ndarray,
-                               threshold: int = MIN_THRESHOLD) -> np.ndarray:
+                               threshold: int = MIN_THRESHOLD,
+                               coordinate_mode: str = COORD_MODE_LEGACY) -> np.ndarray:
     """Convert a grayscale polar image (RBINS x ABINS) to a 2-D point cloud.
 
     Applies the same thresholding and grid mapping as image_to_pcd.py so that
@@ -60,6 +100,10 @@ def polar_image_to_pointcloud(img: np.ndarray,
         Row dimension = range (x), column dimension = azimuth (y).
     threshold : int
         Pixels at or below this value are zeroed (THRESH_TOZERO).
+    coordinate_mode : str
+        - "legacy_cartesian": apply legacy pol_to_cart remap before point extraction
+          (paper-comparable mode).
+        - "polar_direct": map directly from image indices to metric grids.
 
     Returns
     -------
@@ -67,11 +111,14 @@ def polar_image_to_pointcloud(img: np.ndarray,
         Float64 array of shape (N, 2) with columns (x_meters, y_meters).
         Returns shape (0, 2) when no pixels survive thresholding.
     """
-    # Ensure uint8 for cv2 threshold
-    if img.dtype != np.uint8:
-        img_u8 = np.clip(img, 0, 255).astype(np.uint8)
+    if coordinate_mode not in VALID_COORD_MODES:
+        raise ValueError(f"Unknown coordinate_mode='{coordinate_mode}'. "
+                         f"Expected one of {sorted(VALID_COORD_MODES)}")
+
+    if coordinate_mode == COORD_MODE_LEGACY:
+        img_u8 = polar_to_cartesian_legacy(img)
     else:
-        img_u8 = img
+        img_u8 = _to_uint8(img)
 
     _ret, thresh_img = cv2.threshold(img_u8, threshold, MAX_THRESHOLD, cv2.THRESH_TOZERO)
 
@@ -286,7 +333,8 @@ def evaluate_experiment(pred_dir: str,
                         output_dir: str,
                         experiment_name: str = "experiment",
                         radar_dir: str = None,
-                        threshold: float = 0.5) -> dict:
+                        threshold: float = 0.5,
+                        coordinate_mode: str = COORD_MODE_LEGACY) -> dict:
     """Evaluate all prediction/label image pairs in the given directories.
 
     File naming convention:
@@ -320,6 +368,8 @@ def evaluate_experiment(pred_dir: str,
         Optional directory containing *_radar.png for visualisation.
     threshold : float
         Binarisation threshold for polar IoU/F1 (default 0.5).
+    coordinate_mode : str
+        Point-cloud conversion mode ("legacy_cartesian" or "polar_direct").
 
     Returns
     -------
@@ -329,6 +379,9 @@ def evaluate_experiment(pred_dir: str,
     pred_files = sorted(glob.glob(os.path.join(pred_dir, "*_pred.png")))
     if not pred_files:
         raise FileNotFoundError(f"No *_pred.png files found in {pred_dir}")
+    if coordinate_mode not in VALID_COORD_MODES:
+        raise ValueError(f"Unknown coordinate_mode='{coordinate_mode}'. "
+                         f"Expected one of {sorted(VALID_COORD_MODES)}")
 
     output_path = Path(output_dir)
     plots_path = output_path / "plots"
@@ -364,8 +417,8 @@ def evaluate_experiment(pred_dir: str,
         polar_metrics = polar_iou_f1(pred_img, label_img, threshold=threshold)
 
         # --- Point-cloud metrics ---
-        pc_pred  = polar_image_to_pointcloud(pred_img)
-        pc_label = polar_image_to_pointcloud(label_img)
+        pc_pred  = polar_image_to_pointcloud(pred_img, coordinate_mode=coordinate_mode)
+        pc_label = polar_image_to_pointcloud(label_img, coordinate_mode=coordinate_mode)
 
         sample_row: dict = {"stem": stem, **polar_metrics}
 
@@ -415,6 +468,7 @@ def evaluate_experiment(pred_dir: str,
         "n_samples":  len(per_sample),
         "n_skipped":  skipped,
         "threshold":  threshold,
+        "coordinate_mode": coordinate_mode,
         "aggregate":  aggregate,
         "per_sample": per_sample,
     }
@@ -462,6 +516,7 @@ def evaluate_experiment(pred_dir: str,
 
     print(f"\n[evaluate_experiment] {experiment_name}")
     print(f"  Samples: {len(per_sample)}  |  Skipped: {skipped}")
+    print(f"  Point-cloud coordinate mode: {coordinate_mode}")
     for key in ["chamfer_distance", "modified_hausdorff", "iou", "f1"]:
         if key in aggregate:
             agg = aggregate[key]
@@ -493,6 +548,10 @@ def main():
                              "(used only for side-by-side visualisations).")
     parser.add_argument("--threshold",        type=float, default=0.5,
                         help="Binarisation threshold for polar IoU/F1 (values in [0,1]).")
+    parser.add_argument("--coordinate-mode",  type=str, default=COORD_MODE_LEGACY,
+                        choices=sorted(VALID_COORD_MODES),
+                        help="Point-cloud conversion mode. "
+                             "'legacy_cartesian' matches original RadarHD eval flow.")
 
     args = parser.parse_args()
 
@@ -503,6 +562,7 @@ def main():
         experiment_name=args.experiment_name,
         radar_dir=args.radar_dir,
         threshold=args.threshold,
+        coordinate_mode=args.coordinate_mode,
     )
 
     # Print concise summary to stdout

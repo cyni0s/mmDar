@@ -1,0 +1,9 @@
+{
+  "experiment": "baseline_paper_params_legacy_cartesian",
+  "source_experiment": "baseline_paper_params",
+  "run_dir": "logs/baseline_1_20260225-184801",
+  "evaluation_only": true,
+  "coordinate_mode": "legacy_cartesian",
+  "pointcloud_threshold": 1,
+  "notes": "Re-evaluation of paper-parameter training outputs using legacy pol_to_cart + point-cloud conversion flow for paper-comparable metrics."
+}
