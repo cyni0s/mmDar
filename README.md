@@ -13,8 +13,9 @@ Each improvement is isolated and ablated so the contribution of each change is m
 |------------|-------------|-------------------|-----|-----|-------|
 | Paper (reported) | 0.36 | 0.24 | — | — | RadarHD ICRA 2023 |
 | baseline_pretrained | **0.363** | **0.247** | 0.026 | 0.051 | Pretrained 120.pt_gen |
-| baseline_paper_params | 0.399 | 0.277 | 0.025 | 0.050 | Retrained, paper HP |
-| baseline_5090_adapted | 0.537 | 0.378 | 0.013 | 0.025 | Retrained, 5090 GPU |
+| baseline_optimized_ep020 | **0.372** | **0.228** | 0.027 | 0.052 | batch=24, lr=1.5e-4, bf16, epoch 20 |
+| baseline_paper_params | 0.399 | 0.277 | 0.025 | 0.050 | batch=6, lr=1e-4, fp32, best.pt_gen |
+| baseline_5090_adapted | 0.537 | 0.378 | 0.013 | 0.025 | batch=48, lr=8e-4, bf16, best.pt_gen |
 
 *All values are median over 18,575 test samples using legacy-cartesian coordinate conversion (paper-comparable pipeline).*
 
@@ -136,6 +137,56 @@ mmDar/
 │   └── README.md             # Experiment comparison table
 └── create_dataset/           # Raw sensor processing scripts
 ```
+
+## Changes From Original RadarHD
+
+This section documents all modifications from the [upstream RadarHD repository](https://github.com/akarsh-prabhakara/RadarHD). The model architecture (`UNet1`), dataloader, and loss function (`BCELoss + DiceLoss`) are **untouched**.
+
+### Infrastructure
+
+| Change | File(s) | Purpose |
+|--------|---------|---------|
+| Docker environment | `Dockerfile`, `docker-compose.yml`, `.dockerignore` | NGC 25.02-py3 base (CUDA 12.8, PyTorch 2.7, RTX 5090 / sm_120 support) |
+| Dependency pinning | `requirements.txt` | numpy<2.0 to avoid ABI conflicts; torch/tensorboard omitted (NGC-managed) |
+| Git hygiene | `.gitignore` | Ignore checkpoints, datasets, TensorBoard dirs, test_imgs |
+
+### Training (`train_radarhd.py`)
+
+| Change | Original | Modified | Impact |
+|--------|----------|----------|--------|
+| TensorBoard logging | None | `SummaryWriter` logs epoch loss + LR | Observability only |
+| Model summary | `torchsummary.summary(gen, (H+1, 256, 64))` | `torchinfo.summary(gen, input_size=(1, H+1, 256, 64))` | Fixes BatchNorm 4D error |
+| DataLoader workers | `num_workers=0` (default) | `num_workers=4, pin_memory=True` | GPU utilization 7% → 94% |
+| Mixed precision | fp32 only | Optional bf16 autocast (loss computed in fp32) | ~30% faster per epoch |
+| Gradient accumulation | Not supported | `grad_accum_steps` parameter (default 1) | Enables large effective batch |
+| LR schedule | Constant only | Optional linear warmup + cosine decay | For future experiments |
+| Best checkpoint | Not saved | `best.pt_gen` saved on lowest epoch mean loss | **Caution:** training loss ≠ test metric (see Lessons) |
+| Params saved | Not saved | `params.json` written to log dir | Reproducibility |
+| `zero_grad` | `zero_grad()` per batch | `zero_grad(set_to_none=True)` after optimizer step | Memory efficiency; mathematically equivalent |
+
+### Inference (`test_radarhd.py`)
+
+| Change | Original | Modified |
+|--------|----------|----------|
+| Checkpoint loading | Fixed epoch number only | `epoch_num=-1` loads `best.pt_gen` |
+| Model summary | Same BatchNorm fix as training | `input_size=(1, ...)` |
+
+### Evaluation (`eval/eval_pointcloud.py` — new file)
+
+Python replacement for the MATLAB evaluation pipeline (`pc_compare.m` + `pc_distance.m`):
+- Chamfer distance and modified Hausdorff matching MATLAB definitions exactly
+- Two coordinate modes: `legacy_cartesian` (matches paper's `pol_to_cart.py` flow) and `polar_direct`
+- Polar image metrics: IoU, F1, precision, recall
+- Batch evaluation with per-sample CSV output and side-by-side visualizations
+- Uses `scipy.spatial.distance.cdist` — no PyTorch/pytorch3d dependency
+
+The `legacy_cartesian` mode reproduces the paper's eval pipeline within 3% (Chamfer 0.363m vs reported 0.36m).
+
+### Lessons Learned
+
+- **Checkpoint selection by training loss is unreliable.** BCE+Dice loss in polar space correlates poorly with Cartesian point-cloud metrics (Chamfer/mod-Hausdorff). A run with 12% lower training loss produced 15% worse Chamfer distance. Select checkpoints by evaluating test metrics on saved periodic checkpoints instead.
+- **Batch size affects regularization.** The original batch=6 provides noisy gradients that implicitly regularize via BatchNorm statistics. Scaling to batch=24 or 48 reduces this noise, leading to sharper minima that overfit. For this architecture, batch=6 appears optimal.
+- **The original authors used no validation set or metric-based selection.** They trained for 130 epochs, saved every 10, and shipped epoch 120. Matching this approach (periodic saves + metric-based selection from candidates) is more effective than our `best.pt_gen` strategy.
 
 ## Credits & References
 

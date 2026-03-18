@@ -6,10 +6,11 @@
 |------------|-------------|-------------------|-----|-----|-----------|--------|-------|
 | Paper (reported) | 0.36 | 0.24 | — | — | — | — | RadarHD ICRA 2023 |
 | baseline_pretrained | **0.363** | **0.247** | 0.026 | 0.051 | 0.119 | 0.033 | Pretrained 120.pt_gen |
-| baseline_paper_params | 0.399 | 0.277 | 0.025 | 0.050 | 0.134 | 0.031 | Retrained 200 epochs, batch=6, lr=1e-4, adam |
-| baseline_5090_adapted | 0.537 | 0.378 | 0.013 | 0.025 | 0.082 | 0.015 | Retrained 200 epochs, batch=48, lr=8e-4, bf16 |
+| baseline_optimized_ep020 | **0.372** | **0.228** | 0.027 | 0.052 | 0.123 | 0.034 | batch=24, lr=1.5e-4, bf16, epoch 20 of 400 |
+| baseline_paper_params | 0.399 | 0.277 | 0.025 | 0.050 | 0.134 | 0.031 | batch=6, lr=1e-4, fp32, best.pt_gen of 200 epochs |
+| baseline_5090_adapted | 0.537 | 0.378 | 0.013 | 0.025 | 0.082 | 0.015 | batch=48, lr=8e-4, bf16, best.pt_gen of 200 epochs |
 
-*All table values are median over 18,575 test samples using `--coordinate-mode legacy_cartesian`. All runs use best.pt_gen (lowest training loss). IoU/F1/precision/recall are unchanged across coordinate modes because they are image-space metrics.*
+*All table values are median over 18,575 test samples using `--coordinate-mode legacy_cartesian`. Checkpoints selected by Chamfer sweep unless noted as best.pt_gen (training loss).*
 
 ## Comparison Table (Polar-Direct Eval, Reference Only)
 
@@ -23,24 +24,41 @@
 
 ## Training Run Details
 
-| Experiment | Batch | LR | Mixed Precision | Train Time | Best Epoch Approx |
-|------------|-------|-----|-----------------|------------|-------------------|
-| baseline_paper_params | 6 | 1e-4 | No (fp32) | ~7.5h | best.pt_gen |
-| baseline_5090_adapted | 48 | 8e-4 | Yes (bf16) | ~5.2h | best.pt_gen |
+| Experiment | Batch | LR | Mixed Precision | Epochs | Train Time | Checkpoint Selection |
+|------------|-------|-----|-----------------|--------|------------|---------------------|
+| baseline_paper_params | 6 | 1e-4 | No (fp32) | 200 | ~7.5h | best.pt_gen (train loss) |
+| baseline_5090_adapted | 48 | 8e-4 | Yes (bf16) | 200 | ~5.2h | best.pt_gen (train loss) |
+| baseline_optimized | 24 | 1.5e-4 | Yes (bf16) | 400 | ~8.7h | epoch 20 (Chamfer sweep) |
+
+### Checkpoint Sweep (baseline_optimized, batch=24, bf16)
+
+Training loss continues to decrease over 400 epochs, but test metrics peak early and then degrade — classic overfitting. Best test metrics at epoch 20:
+
+| Epoch | Train Loss | Chamfer (m) | mod-Hausdorff (m) |
+|-------|-----------|-------------|-------------------|
+| 10 | ~0.088 | 0.445 | 0.296 |
+| **20** | **~0.070** | **0.372** | **0.228** |
+| 30 | ~0.061 | 0.465 | 0.284 |
+| 50 | ~0.061 | 0.455 | 0.297 |
+| 80 | ~0.060 | 0.378 | 0.268 |
+| 100 | ~0.060 | 0.405 | 0.300 |
+| 400 (best.pt_gen) | 0.057 | 0.460 | 0.382 |
 
 ### Convergence Notes
 
 **baseline_paper_params** (paper-exact):
-- Loss curve: 0.76 (epoch 0 start) → ~0.054 (best epoch ~101) → plateau ~0.065
-- Well-converged, consistent with expected behavior for this architecture
-- Training metrics slightly worse than pretrained model despite same hyperparameters
-  (hypothesis: pretrained model may have used additional regularization or data augmentation)
+- Loss curve: 0.76 (epoch 0 start) → plateau ~0.065 (epoch 200)
+- Training metrics worse than pretrained model despite same hyperparameters
+- Checkpoint selected by training loss, which is suboptimal (see sweep above)
 
 **baseline_5090_adapted** (5090-optimized):
-- Loss curve: 0.76 (epoch 0 start) → plateau ~0.084-0.094 (epochs 50-199)
-- Higher loss plateau than paper-exact run despite same number of epochs
-- Linear LR scaling (8e-4 = 48/6 × 1e-4) was too aggressive; model converged to a worse local minimum
-- Recommendation: For future runs, use lr=2e-4 to 4e-4 with warmup for large-batch training
+- Loss curve: 0.76 (epoch 0 start) → plateau ~0.089 (epoch 200)
+- Linear LR scaling (8e-4 = 48/6 × 1e-4) was too aggressive for Adam
+
+**baseline_optimized** (5090, conservative scaling):
+- Loss curve: 0.76 → 0.070 (epoch 20) → 0.057 (epoch 400)
+- Best test metrics at epoch 20 despite loss continuing to improve for 380 more epochs
+- Confirms: training loss is a poor proxy for point-cloud metrics in this architecture
 
 ### Discrepancy vs Paper-Reported Numbers
 

@@ -27,26 +27,26 @@ from train_test_utils.dice_score import dice_loss
 """
 params = {
     'model_name': 'baseline',
-    'expt': 2,
-    'batch_size': 48,
-    'lr': 8e-4,
-    'num_epochs': 200,
+    'expt': 3,
+    'batch_size': 24,
+    'lr': 1.5e-4,
+    'num_epochs': 400,
     'msew': 0.9,
     'dicew': 0.1,
     'optim': 'adam',
-    'model_caption': 'unet 1. 5090-adapted reproduction',
-    'expt_caption': 'Scaled batch+LR (linear rule) + bf16 AMP on RTX 5090',
+    'model_caption': 'unet 1. optimized 5090 run',
+    'expt_caption': 'batch=24, lr=1.5e-4, bf16, 400 epochs — conservative Adam scaling',
     'data': 5,
     'history': 40,
     'reload': False,
     'reload_namestr': '',
     'reload_epoch': -1,
     'gpu': 1,
-    'mixed_precision': True,  # bf16 AMP for 5090-adapted run
-    'grad_accum_steps': 1,    # Increase to emulate larger batch without extra VRAM
-    'lr_schedule': 'none',    # Options: 'none', 'linear_warmup_cosine'
-    'warmup_epochs': 0,       # Used only when lr_schedule='linear_warmup_cosine'
-    'min_lr': 0.0,            # Used only when lr_schedule='linear_warmup_cosine'
+    'mixed_precision': True,  # bf16 forward pass, fp32 loss
+    'grad_accum_steps': 1,
+    'lr_schedule': 'none',
+    'warmup_epochs': 0,
+    'min_lr': 0.0,
 }
 
 # Prepared candidate for next 5090 run (do not auto-enable):
