@@ -69,6 +69,9 @@ def parse_args():
                         help='Enable bfloat16 AMP for forward pass')
     parser.add_argument('--gradient_checkpointing', action='store_true',
                         help='Enable gradient checkpointing in encoder (saves memory)')
+    parser.add_argument('--temporal_chunk', type=int, default=0,
+                        help='Chunk T frames into groups of this size for encoder/decoder '
+                             '(0=all at once, 4=recommended for batch>=12 with T>=8)')
 
     # Validation / checkpointing
     parser.add_argument('--val_every', type=int, default=5,
@@ -292,7 +295,8 @@ def train(args):
     # Model
     # ------------------------------------------------------------------
     model = UNet1ConvLSTM(n_channels=1, n_classes=1,
-                          use_checkpointing=args.gradient_checkpointing).to(device)
+                          use_checkpointing=args.gradient_checkpointing,
+                          temporal_chunk_size=args.temporal_chunk).to(device)
 
     try:
         from torchinfo import summary as ti_summary

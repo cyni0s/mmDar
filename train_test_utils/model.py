@@ -140,10 +140,11 @@ class UNet1ConvLSTM(nn.Module):
     """
 
     def __init__(self, n_channels=1, n_classes=1, bilinear=True, hidden_channels=256,
-                 use_checkpointing=False):
+                 use_checkpointing=False, temporal_chunk_size=0):
         super().__init__()
         self.hidden_channels = hidden_channels
         self.use_checkpointing = use_checkpointing
+        self.temporal_chunk_size = temporal_chunk_size  # 0 = batch all T at once
         factor = 2 if bilinear else 1
 
         # Encoder — shared weights, single frame, GroupNorm throughout
@@ -255,36 +256,45 @@ class UNet1ConvLSTM(nn.Module):
         else:
             (h1, c1), (h2, c2) = state
 
-        # --- Batched encoder: (B, T, 1, H, W) → (B*T, 1, H, W) → features ---
-        x_flat = x_seq.reshape(B * T, *x_seq.shape[2:])
-        enc1, enc2, enc3, enc4, enc5 = self._encode(x_flat)
+        # Determine chunk size: 0 means all T at once, otherwise chunk temporally
+        C = self.temporal_chunk_size if self.temporal_chunk_size > 0 else T
 
-        # Reshape to (B, T, C, H, W) for temporal indexing
-        enc4_t = enc4.reshape(B, T, *enc4.shape[1:])
-        enc5_t = enc5.reshape(B, T, *enc5.shape[1:])
+        # --- Process in temporal chunks: encode → LSTM → decode per chunk ---
+        all_outputs = []
+        for chunk_start in range(0, T, C):
+            chunk_end = min(chunk_start + C, T)
+            Tc = chunk_end - chunk_start
 
-        # Capture dtype for LSTM→decoder casting (may be bf16 under autocast)
-        enc_dtype = enc5.dtype
+            # Batched encoder for this chunk
+            chunk = x_seq[:, chunk_start:chunk_end].reshape(B * Tc, *x_seq.shape[2:])
+            enc1, enc2, enc3, enc4, enc5 = self._encode(chunk)
 
-        # --- Sequential ConvLSTM on small feature maps only ---
-        lstm1_outs = []
-        lstm2_outs = []
-        for t in range(T):
-            x5_proj = self.proj_in1(enc5_t[:, t])
-            h1, c1 = self.convlstm1(x5_proj, h1, c1)
-            lstm1_outs.append(self.proj_out1(h1.to(enc_dtype)))
+            enc_dtype = enc5.dtype
 
-            x4_proj = self.proj_in2(enc4_t[:, t])
-            h2, c2 = self.convlstm2(x4_proj, h2, c2)
-            lstm2_outs.append(self.proj_out2(h2.to(enc_dtype)))
+            # Reshape LSTM inputs: (B*Tc, C, H, W) → (B, Tc, C, H, W)
+            enc4_t = enc4.reshape(B, Tc, *enc4.shape[1:])
+            enc5_t = enc5.reshape(B, Tc, *enc5.shape[1:])
 
-        # Stack LSTM outputs: (B, T, C, H, W) → (B*T, C, H, W)
-        x5_out = torch.stack(lstm1_outs, dim=1).reshape(B * T, *lstm1_outs[0].shape[1:])
-        x4_out = torch.stack(lstm2_outs, dim=1).reshape(B * T, *lstm2_outs[0].shape[1:])
+            # Sequential ConvLSTM on small feature maps
+            lstm1_outs = []
+            lstm2_outs = []
+            for t in range(Tc):
+                x5_proj = self.proj_in1(enc5_t[:, t])
+                h1, c1 = self.convlstm1(x5_proj, h1, c1)
+                lstm1_outs.append(self.proj_out1(h1.to(enc_dtype)))
 
-        # --- Batched decoder: all T frames at once ---
-        output = self._decode(x5_out, x4_out, enc3, enc2, enc1)
+                x4_proj = self.proj_in2(enc4_t[:, t])
+                h2, c2 = self.convlstm2(x4_proj, h2, c2)
+                lstm2_outs.append(self.proj_out2(h2.to(enc_dtype)))
 
-        out = output.reshape(B, T, *output.shape[1:])
+            # Stack LSTM outputs: (B, Tc, C, H, W) → (B*Tc, C, H, W)
+            x5_out = torch.stack(lstm1_outs, dim=1).reshape(B * Tc, *lstm1_outs[0].shape[1:])
+            x4_out = torch.stack(lstm2_outs, dim=1).reshape(B * Tc, *lstm2_outs[0].shape[1:])
+
+            # Batched decoder for this chunk
+            chunk_out = self._decode(x5_out, x4_out, enc3, enc2, enc1)
+            all_outputs.append(chunk_out.reshape(B, Tc, *chunk_out.shape[1:]))
+
+        out = torch.cat(all_outputs, dim=1) if len(all_outputs) > 1 else all_outputs[0]
         state_out = ((h1, c1), (h2, c2))
         return out, state_out
