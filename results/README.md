@@ -133,6 +133,14 @@ python3 eval/eval_pointcloud.py \
 Results are written to `results/<experiment-name>/metrics.json` and `metrics.csv`.
 Update the Comparison Table above with the `median` values from the JSON output.
 
+## Realized Efficiency Improvements
+
+Optimizations implemented and validated during Phase 2 development.
+
+- **Batched encoder/decoder forward pass**: UNet1ConvLSTM reshapes `(B, T, C, H, W)` to `(B*T, C, H, W)` for encoder and decoder, running all frames in a single GPU-efficient pass. Only the ConvLSTM cells (on small 16x4 and 32x8 feature maps) step sequentially. Eliminates T sequential full-UNet passes. GroupNorm is batch-size-invariant so results are numerically identical.
+- **Truncated BPTT**: train with short sequences (T=8), evaluate at full T=41. With zero-init state per batch, the model learns temporal features over 8 frames and generalizes to longer horizons at eval time. Combined with batched forward, reduces epoch time from ~72 min to an estimated ~5-10 min.
+- **fp32 precision for final quality**: sweep confirmed fp32 achieves 4% better Chamfer than bf16 at the same config (0.295m vs 0.308m) and peaks earlier (epoch 10 vs 20), so wall-clock time to best is similar despite ~35% slower per-epoch throughput. Use bf16 for sweeps, fp32 for final results.
+
 ## Future Experiments
 
 Ideas to test separately from the main architectural ablation. Each should be isolated to avoid confounding.
@@ -146,5 +154,6 @@ Ideas to test separately from the main architectural ablation. Each should be is
 - **Non-overlapping contiguous chunks + TBPTT**: redesign dataset for true streaming training (no stride-1 sliding windows) to enable cross-batch state carry.
 - **Expanded ConvLSTM levels**: add ConvLSTM to remaining 3 skip connection levels (5 total) if 2-cell results are promising.
 - **Alternative temporal models**: 3D convolutions (R(2+1)D), Temporal Shift Modules (TSM), bottleneck self-attention — different temporal fusion paradigms for comparison.
-- **Batched inference**: current inference uses batch=1, massively underutilizing the GPU. Inference batch size does not affect outputs (BatchNorm uses frozen running stats, no gradients computed). Bumping to batch=16-32 should cut inference from ~9 min to ~1-2 min per checkpoint.
+- **Batched inference**: current inference uses batch=1, massively underutilizing the GPU. Inference batch size does not affect outputs (no gradients, GroupNorm is batch-invariant). Bumping to batch=16-32 should cut inference from ~9 min to ~1-2 min per checkpoint.
 - **Multi-config runner**: each experiment currently launches a fresh Docker container and reloads all data (~15 min overhead). A single script that loads data once and trains multiple configs sequentially would eliminate this repeated cost.
+- **Curriculum sequence length**: train with increasing T (8→16→41) rather than fixed truncated BPTT. May capture longer-range dependencies that T=8 misses.
