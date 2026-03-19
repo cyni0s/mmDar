@@ -21,13 +21,44 @@ import numpy as np
 from PIL import Image
 from torchinfo import summary
 
+import subprocess
+
 from train_test_utils.dataloader import *
 from train_test_utils.model import *
 from train_test_utils.dice_score import dice_loss
 from eval.eval_pointcloud import evaluate_experiment
 
 
+def _train_convlstm(args):
+    """Dispatch training to train_convlstm.py via subprocess."""
+    import datetime
+    dt = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+    name = f"convlstm_b{args.batch}_lr{args.lr}_{'bf16' if args.bf16 else 'fp32'}_{dt}"
+    LOG_DIR = f'./logs/{name}/'
+
+    cmd = [
+        'python3', 'train_convlstm.py',
+        '--batch', str(args.batch),
+        '--lr', str(args.lr),
+        '--epochs', str(args.epochs),
+        '--name', name,
+    ]
+    if args.bf16:
+        cmd.append('--bf16')
+
+    print(f'\nDispatching ConvLSTM training: {" ".join(cmd)}')
+    t0 = time.time()
+    subprocess.run(cmd, check=True)
+    train_time = time.time() - t0
+
+    return LOG_DIR, name, train_time
+
+
 def train(args):
+    # Dispatch to ConvLSTM training script when --model convlstm
+    if getattr(args, 'model', 'baseline') == 'convlstm':
+        return _train_convlstm(args)
+
     torch.manual_seed(0)
     device = torch.device('cuda')
 
@@ -124,16 +155,60 @@ def train(args):
     return LOG_DIR, name, train_time
 
 
-def sweep_checkpoints(LOG_DIR, name, sweep_only=None):
+def sweep_checkpoints(LOG_DIR, name, sweep_only=None, model_type='baseline'):
     """Run inference + eval on saved checkpoints.
+
+    For model_type='convlstm', dispatches each checkpoint to test_convlstm.py
+    via subprocess and reads results from the saved metrics.json. This avoids
+    duplicating ConvLSTM inference logic in this file.
 
     If sweep_only is provided, only evaluate those epoch numbers.
     Otherwise evaluate all saved checkpoints.
     """
+    # Find checkpoints to evaluate
+    ckpts = sorted([f for f in os.listdir(LOG_DIR) if f.endswith('.pt_gen') and f[0].isdigit()])
+    if sweep_only:
+        ckpts = [f for f in ckpts if int(f.split('.')[0]) in sweep_only]
+    results = []
+
+    print(f'\nSweeping {len(ckpts)} checkpoints ({model_type})...')
+
+    if model_type == 'convlstm':
+        # ConvLSTM path: dispatch to test_convlstm.py per checkpoint
+        for ckpt_name in ckpts:
+            epoch = int(ckpt_name.split('.')[0])
+            ckpt_path = os.path.join(LOG_DIR, ckpt_name)
+            save_path = os.path.join(LOG_DIR, f'test_imgs_ep{epoch:03d}')
+            out_dir = f'results/{name}_ep{epoch:03d}'
+
+            cmd = [
+                'python3', 'test_convlstm.py',
+                '--checkpoint', ckpt_path,
+                '--output_dir', save_path,
+                '--T', '41',
+                '--eval',
+                '--results_dir', out_dir,
+                '--experiment_name', f'{name}_ep{epoch}',
+            ]
+            print(f'  Epoch {epoch:3d}: running inference+eval ...')
+            subprocess.run(cmd, check=True)
+
+            # Read metrics from the saved metrics.json
+            metrics_path = os.path.join(out_dir, 'metrics.json')
+            with open(metrics_path, 'r') as f:
+                metrics_data = json.load(f)
+            agg = metrics_data['aggregate']
+            cd = agg['chamfer_distance']['median']
+            mh = agg['modified_hausdorff']['median']
+            results.append({'epoch': epoch, 'chamfer': cd, 'mod_hausdorff': mh})
+            print(f'  Epoch {epoch:3d}: Chamfer={cd:.4f}m  mod-H={mh:.4f}m')
+
+        return results
+
+    # Baseline path: inline inference
     device = torch.device('cuda')
     torch.manual_seed(0)
 
-    # Load test data
     basepath = './dataset_5/'
     orig_size = [256, 64, 512]
     reqd_size = [256, 64, 512]
@@ -146,13 +221,6 @@ def sweep_checkpoints(LOG_DIR, name, sweep_only=None):
 
     gen = UNet1(41, 1).to(device)
 
-    # Find checkpoints to evaluate
-    ckpts = sorted([f for f in os.listdir(LOG_DIR) if f.endswith('.pt_gen') and f[0].isdigit()])
-    if sweep_only:
-        ckpts = [f for f in ckpts if int(f.split('.')[0]) in sweep_only]
-    results = []
-
-    print(f'\nSweeping {len(ckpts)} checkpoints...')
     for ckpt_name in ckpts:
         epoch = int(ckpt_name.split('.')[0])
         ckpt_path = os.path.join(LOG_DIR, ckpt_name)
@@ -203,11 +271,14 @@ def main():
     parser.add_argument('--bf16', action='store_true')
     parser.add_argument('--sweep-epochs', type=str, default='10,20,30',
                         help='Comma-separated epochs to evaluate (default: 10,20,30)')
+    parser.add_argument('--model', type=str, default='baseline',
+                        choices=['baseline', 'convlstm'],
+                        help='Model architecture to train and evaluate.')
     args = parser.parse_args()
 
     LOG_DIR, name, train_time = train(args)
     sweep_only = [int(e) for e in args.sweep_epochs.split(',')]
-    results = sweep_checkpoints(LOG_DIR, name, sweep_only=sweep_only)
+    results = sweep_checkpoints(LOG_DIR, name, sweep_only=sweep_only, model_type=args.model)
 
     # Summary
     print(f'\n{"="*60}')

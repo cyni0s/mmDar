@@ -313,6 +313,105 @@ def save_side_by_side(radar_img, pred_img, label_img, save_path: str,
 
 
 # ---------------------------------------------------------------------------
+# Temporal consistency metric
+# ---------------------------------------------------------------------------
+
+def _sort_key(path):
+    """Sort key that extracts (traj_id, frame_idx) from prediction filenames.
+
+    Handles two naming conventions:
+      - "{traj_id}_{frame_idx}_pred.png"         (test_convlstm.py output)
+      - "{epoch}_{traj_id}_{frame_idx}_pred.png"  (run_experiment.py sweep output)
+
+    Strategy: strip the '_pred.png' suffix, then rsplit('_', 2) to get the
+    rightmost two underscore-separated tokens as (traj_id, frame_idx).
+    """
+    stem = Path(path).name.replace('_pred.png', '')
+    parts = stem.rsplit('_', 2)
+    try:
+        traj_id   = int(parts[-2])
+        frame_idx = int(parts[-1])
+    except (ValueError, IndexError):
+        # Fall back to lexicographic sort for unexpected filenames
+        return (0, 0, path)
+    return (traj_id, frame_idx)
+
+
+def temporal_consistency(pred_dir, coordinate_mode=COORD_MODE_LEGACY):
+    """Compute frame-to-frame Chamfer distance between consecutive predictions.
+
+    Groups prediction files by trajectory, then computes Chamfer distance between
+    consecutive frames within each trajectory. Frames from different trajectories
+    are never compared (no boundary crossings).
+
+    Predictions must be named with sortable trajectory+frame indices:
+      - "{traj_id}_{frame_idx}_pred.png"  OR
+      - "{epoch}_{traj_id}_{frame_idx}_pred.png"
+
+    Args:
+        pred_dir: directory containing *_pred.png files
+        coordinate_mode: coordinate conversion mode for polar_image_to_pointcloud
+
+    Returns:
+        dict with keys:
+          'mean'   : float — mean frame-to-frame Chamfer distance
+          'median' : float — median frame-to-frame Chamfer distance
+          'std'    : float — std of frame-to-frame Chamfer distances
+          'count'  : int   — number of consecutive pairs evaluated
+          'scores' : list[float] — per-pair Chamfer distances
+    """
+    pred_files = sorted(
+        glob.glob(os.path.join(pred_dir, '*_pred.png')),
+        key=_sort_key,
+    )
+
+    if not pred_files:
+        return {'mean': float('nan'), 'median': float('nan'),
+                'std': float('nan'), 'count': 0, 'scores': []}
+
+    # Group files by trajectory ID (parse from filename using same logic as _sort_key)
+    # Use an ordered dict keyed by traj_id to preserve sort order
+    from collections import defaultdict
+    traj_groups = defaultdict(list)
+    for p in pred_files:
+        stem = Path(p).name.replace('_pred.png', '')
+        parts = stem.rsplit('_', 2)
+        try:
+            traj_id = int(parts[-2])
+        except (ValueError, IndexError):
+            traj_id = -1
+        traj_groups[traj_id].append(p)
+
+    scores = []
+    for traj_id in sorted(traj_groups.keys()):
+        files = traj_groups[traj_id]  # already sorted by (traj_id, frame_idx) from above
+        for i in range(len(files) - 1):
+            img_a = cv2.imread(files[i],   cv2.IMREAD_GRAYSCALE)
+            img_b = cv2.imread(files[i+1], cv2.IMREAD_GRAYSCALE)
+            if img_a is None or img_b is None:
+                continue
+            pc_a = polar_image_to_pointcloud(img_a, coordinate_mode=coordinate_mode)
+            pc_b = polar_image_to_pointcloud(img_b, coordinate_mode=coordinate_mode)
+            if pc_a.shape[0] == 0 or pc_b.shape[0] == 0:
+                # Skip pairs where either prediction is empty
+                continue
+            scores.append(chamfer_distance(pc_a, pc_b))
+
+    if not scores:
+        return {'mean': float('nan'), 'median': float('nan'),
+                'std': float('nan'), 'count': 0, 'scores': []}
+
+    arr = np.array(scores, dtype=np.float64)
+    return {
+        'mean':   float(np.mean(arr)),
+        'median': float(np.median(arr)),
+        'std':    float(np.std(arr)),
+        'count':  len(scores),
+        'scores': scores,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Batch evaluation
 # ---------------------------------------------------------------------------
 
