@@ -5,7 +5,7 @@
 | Experiment | Chamfer (m) | Mod-Hausdorff (m) | IoU | F1 | Precision | Recall | Notes |
 |------------|-------------|-------------------|-----|-----|-----------|--------|-------|
 | Paper (reported) | 0.36 | 0.24 | — | — | — | — | RadarHD ICRA 2023 |
-| **5090-optimized** | **0.308** | **0.189** | 0.033 | 0.064 | 0.134 | 0.043 | batch=12, lr=7e-5, bf16, epoch 20 |
+| **5090-optimized** | **0.295** | **0.189** | 0.054 | 0.102 | 0.196 | 0.069 | batch=12, lr=7e-5, fp32, epoch 10 |
 | baseline_pretrained | 0.363 | 0.247 | 0.026 | 0.051 | 0.119 | 0.033 | Authors' pretrained 120.pt_gen |
 | baseline_paper_params | 0.399 | 0.277 | 0.025 | 0.050 | 0.134 | 0.031 | batch=6, lr=1e-4, fp32, best.pt_gen of 200 epochs |
 | baseline_5090_adapted | 0.537 | 0.378 | 0.013 | 0.025 | 0.082 | 0.015 | batch=48, lr=8e-4, bf16, best.pt_gen of 200 epochs |
@@ -26,7 +26,7 @@
 
 | Experiment | Batch | LR | Mixed Precision | Epochs | Train Time | Checkpoint Selection |
 |------------|-------|-----|-----------------|--------|------------|---------------------|
-| **5090-optimized** | **12** | **7e-5** | **Yes (bf16)** | **50** | **~80 min** | **epoch 20 (Chamfer sweep)** |
+| **5090-optimized** | **12** | **7e-5** | **No (fp32)** | **50** | **~108 min** | **epoch 10 (Chamfer sweep)** |
 | baseline_paper_params | 6 | 1e-4 | No (fp32) | 200 | ~7.5h | best.pt_gen (train loss) |
 | baseline_5090_adapted | 48 | 8e-4 | Yes (bf16) | 200 | ~5.2h | best.pt_gen (train loss) |
 | baseline_optimized | 24 | 1.5e-4 | Yes (bf16) | 400 | ~8.7h | epoch 20 (Chamfer sweep) |
@@ -35,23 +35,23 @@
 
 Systematic sweep to find optimal training config. All runs: bf16 forward pass, fp32 BCE+Dice loss, Adam(weight_decay=5e-4), seed=0, checkpoints selected by Chamfer distance.
 
-| Batch | LR | Best Chamfer (m) | Best mod-H (m) | Best Epoch | Time to Best | Total Train |
-|-------|-----|-----------------|----------------|-----------|-------------|-------------|
-| **12** | **7e-5** | **0.308** | **0.189** | **20** | **32 min** | 80 min |
-| 12 | 1e-4 | 0.322 | 0.211 | 10 | 16 min | 160 min |
-| 12 | 5e-5 | 0.332 | 0.211 | 20 | 32 min | 80 min |
-| 16 | 1e-4 | 0.334 | 0.212 | 10 | 16 min | 78 min |
-| 6 | 1e-4 | 0.345 | 0.212 | 30 | 52 min | 87 min |
-| 12 | 1.5e-4 | 0.366 | 0.284 | 30 | 48 min | 80 min |
-| 24 | 1.5e-4 | 0.372 | 0.228 | 20 | 23 min | 230 min* |
-
-*\*baseline_optimized ran for 400 epochs; only epoch 20 results shown here.*
+| Batch | LR | Precision | Best Chamfer (m) | Best mod-H (m) | Best Epoch | Time to Best |
+|-------|-----|-----------|-----------------|----------------|-----------|-------------|
+| **12** | **7e-5** | **fp32** | **0.295** | **0.189** | **10** | **22 min** |
+| 12 | 7e-5 | bf16 | 0.308 | 0.189 | 20 | 32 min |
+| 12 | 1e-4 | bf16 | 0.322 | 0.211 | 10 | 16 min |
+| 12 | 5e-5 | bf16 | 0.332 | 0.211 | 20 | 32 min |
+| 16 | 1e-4 | bf16 | 0.334 | 0.212 | 10 | 16 min |
+| 6 | 1e-4 | bf16 | 0.345 | 0.212 | 30 | 52 min |
+| 12 | 1.5e-4 | bf16 | 0.366 | 0.284 | 30 | 48 min |
+| 24 | 1.5e-4 | bf16 | 0.372 | 0.228 | 20 | 23 min |
 
 Key findings:
-- **Batch=12 dominates** across all LR values tested
+- **Batch=12 dominates** across all LR values and precisions tested
 - **LR=7e-5 is optimal** — lower (5e-5) converges too slowly, higher (1e-4+) overfits faster
+- **fp32 beats bf16 by ~4% Chamfer** at the same config (0.295 vs 0.308). Use bf16 for fast sweeps, fp32 for final results
 - **Sweet spot is epoch 10-20** — metrics degrade after that regardless of config
-- **32 minutes** from cold start to Chamfer 0.308m (15% better than paper)
+- **22 minutes** from cold start to Chamfer 0.295m (18% better than paper)
 
 ### Checkpoint Sweep (baseline_optimized, batch=24, bf16)
 
