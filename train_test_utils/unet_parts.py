@@ -7,19 +7,38 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
+def _make_norm(channels, norm_type):
+    """Create a normalization layer by type.
+
+    Args:
+        channels: number of channels (used by both BatchNorm2d and GroupNorm)
+        norm_type: 'batch' -> nn.BatchNorm2d, 'group' -> nn.GroupNorm(32, channels)
+
+    Raises:
+        ValueError: for unknown norm_type strings
+    """
+    if norm_type == 'batch':
+        return nn.BatchNorm2d(channels)
+    elif norm_type == 'group':
+        # 32 groups: all widths in this network (64, 128, 256, 512) are divisible by 32
+        return nn.GroupNorm(32, channels)
+    else:
+        raise ValueError(f"Unknown norm_type: '{norm_type}'. Expected 'batch' or 'group'.")
+
+
 class DoubleConv(nn.Module):
     """(convolution => [BN] => ReLU) * 2"""
 
-    def __init__(self, in_channels, out_channels, mid_channels=None):
+    def __init__(self, in_channels, out_channels, mid_channels=None, norm_type='batch'):
         super().__init__()
         if not mid_channels:
             mid_channels = out_channels
         self.double_conv = nn.Sequential(
             nn.Conv2d(in_channels, mid_channels, kernel_size=3, padding=1),
-            nn.BatchNorm2d(mid_channels),
+            _make_norm(mid_channels, norm_type),
             nn.ReLU(inplace=True),
             nn.Conv2d(mid_channels, out_channels, kernel_size=3, padding=1),
-            nn.BatchNorm2d(out_channels),
+            _make_norm(out_channels, norm_type),
             nn.ReLU(inplace=True)
         )
 
@@ -30,11 +49,11 @@ class DoubleConv(nn.Module):
 class Down(nn.Module):
     """Downscaling with maxpool then double conv"""
 
-    def __init__(self, in_channels, out_channels):
+    def __init__(self, in_channels, out_channels, norm_type='batch'):
         super().__init__()
         self.maxpool_conv = nn.Sequential(
             nn.MaxPool2d(2),
-            DoubleConv(in_channels, out_channels)
+            DoubleConv(in_channels, out_channels, norm_type=norm_type)
         )
 
     def forward(self, x):
@@ -44,16 +63,16 @@ class Down(nn.Module):
 class Up(nn.Module):
     """Upscaling then double conv"""
 
-    def __init__(self, in_channels, out_channels, bilinear=True):
+    def __init__(self, in_channels, out_channels, bilinear=True, norm_type='batch'):
         super().__init__()
 
         # if bilinear, use the normal convolutions to reduce the number of channels
         if bilinear:
             self.up = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
-            self.conv = DoubleConv(in_channels, out_channels, in_channels // 2)
+            self.conv = DoubleConv(in_channels, out_channels, in_channels // 2, norm_type=norm_type)
         else:
             self.up = nn.ConvTranspose2d(in_channels, in_channels // 2, kernel_size=2, stride=2)
-            self.conv = DoubleConv(in_channels, out_channels)
+            self.conv = DoubleConv(in_channels, out_channels, norm_type=norm_type)
 
     def forward(self, x1, x2):
         x1 = self.up(x1)
@@ -72,13 +91,13 @@ class Up(nn.Module):
 class Up_nocat(nn.Module):
     """Upscaling then double conv"""
 
-    def __init__(self, in_channels, out_channels, bilinear=True):
+    def __init__(self, in_channels, out_channels, bilinear=True, norm_type='batch'):
         super().__init__()
 
         # if bilinear, use the normal convolutions to reduce the number of channels
         if bilinear:
             self.up = nn.Upsample(scale_factor=(1,2), mode='bilinear', align_corners=True)
-            self.conv = DoubleConv(in_channels, out_channels, in_channels)
+            self.conv = DoubleConv(in_channels, out_channels, in_channels, norm_type=norm_type)
 
     def forward(self, x1):
         x1 = self.up(x1)
@@ -87,13 +106,13 @@ class Up_nocat(nn.Module):
 class Up_nocat_sym(nn.Module):
     """Upscaling then double conv"""
 
-    def __init__(self, in_channels, out_channels, bilinear=True):
+    def __init__(self, in_channels, out_channels, bilinear=True, norm_type='batch'):
         super().__init__()
 
         # if bilinear, use the normal convolutions to reduce the number of channels
         if bilinear:
             self.up = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
-            self.conv = DoubleConv(in_channels, out_channels, in_channels)
+            self.conv = DoubleConv(in_channels, out_channels, in_channels, norm_type=norm_type)
 
     def forward(self, x1):
         x1 = self.up(x1)
