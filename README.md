@@ -138,7 +138,21 @@ mmDar/
 
 ## Changes From Original RadarHD
 
-This section documents all modifications from the [upstream RadarHD repository](https://github.com/akarsh-prabhakara/RadarHD). The model architecture (`UNet1`), dataloader, and loss function (`BCELoss + DiceLoss`) are **untouched**.
+This section documents all modifications from the [upstream RadarHD repository](https://github.com/akarsh-prabhakara/RadarHD). The original model architecture (`UNet1`), dataloader, and loss function (`BCELoss + DiceLoss`) are **untouched** — Phase 2 adds a new model variant alongside them.
+
+### Phase 2: ConvLSTM Temporal Modeling
+
+| Change | Purpose |
+|--------|---------|
+| ConvLSTM bottleneck architecture (`UNet1ConvLSTM`) | Temporal modeling via 2 ConvLSTM cells at bottleneck + deepest skip connection. Single-frame shared encoder, GroupNorm throughout. ~41M params vs ~30M baseline. |
+| Batched encoder/decoder forward pass | GPU efficiency: encoder and decoder process all T frames as a single `B*T` batch; only ConvLSTM cells step sequentially on small feature maps (16x4, 32x8). Eliminates 41 sequential full-UNet passes. |
+| Trajectory-aware data loading (`SequentialDataset`, `TrajectoryBatchSampler`) | Replaces baseline's 41-channel stacking with proper temporal sequence access. Stateless pre-computed epoch schedule, safe for multi-worker loading. |
+| Dense supervision with weighted timestep loss | Loss computed at every timestep (final=1.0, intermediate=0.2), normalized by weight sum to keep gradient scale comparable to single-frame baseline. |
+| Truncated BPTT training strategy | Train with short sequences (T=8), evaluate at full T=41. Zero-init state per batch — no cross-batch state carry. |
+| ConvLSTM training script (`train_convlstm.py`) | Per-window BPTT, validation-based early stopping, fp32/bf16 AMP, gradient checkpointing support. |
+| ConvLSTM inference with T-curve evaluation (`test_convlstm.py`) | Evaluates at T={1,4,8,16,32,41} to measure metrics vs history length. |
+| Temporal consistency metric | Frame-to-frame Chamfer distance within trajectories, added to `eval_pointcloud.py`. |
+| `--model convlstm` flag in `run_experiment.py` | End-to-end experiment runner dispatches to ConvLSTM training/eval pipeline. |
 
 ### Infrastructure
 

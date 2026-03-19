@@ -4,6 +4,7 @@
 
 import torch.nn as nn
 import torch
+from torch.utils.checkpoint import checkpoint as torch_checkpoint
 
 from train_test_utils.unet_parts import *
 
@@ -138,9 +139,11 @@ class UNet1ConvLSTM(nn.Module):
     (default) to zero-initialize (training: always pass None per batch).
     """
 
-    def __init__(self, n_channels=1, n_classes=1, bilinear=True, hidden_channels=256):
+    def __init__(self, n_channels=1, n_classes=1, bilinear=True, hidden_channels=256,
+                 use_checkpointing=False):
         super().__init__()
         self.hidden_channels = hidden_channels
+        self.use_checkpointing = use_checkpointing
         factor = 2 if bilinear else 1
 
         # Encoder — shared weights, single frame, GroupNorm throughout
@@ -178,8 +181,59 @@ class UNet1ConvLSTM(nn.Module):
         z2 = torch.zeros(B, self.hidden_channels, 32, 8,  device=device, dtype=torch.float32)
         return (z1.clone(), z1.clone()), (z2.clone(), z2.clone())
 
+    def _encode(self, x_flat):
+        """Run encoder on a flat batch of frames.
+
+        Args:
+            x_flat: (N, 1, 256, 64) where N = B*T or B
+
+        Returns:
+            Tuple of encoder feature maps (x1, x2, x3, x4, x5).
+        """
+        if self.use_checkpointing and self.training:
+            x1 = torch_checkpoint(self.inc,   x_flat, use_reentrant=False)
+            x2 = torch_checkpoint(self.down1, x1,     use_reentrant=False)
+            x3 = torch_checkpoint(self.down2, x2,     use_reentrant=False)
+            x4 = torch_checkpoint(self.down3, x3,     use_reentrant=False)
+            x5 = torch_checkpoint(self.down4, x4,     use_reentrant=False)
+        else:
+            x1 = self.inc(x_flat)
+            x2 = self.down1(x1)
+            x3 = self.down2(x2)
+            x4 = self.down3(x3)
+            x5 = self.down4(x4)
+        return x1, x2, x3, x4, x5
+
+    def _decode(self, x5_out, x4_out, x3, x2, x1):
+        """Run decoder on a flat batch of frames.
+
+        Args:
+            x5_out: (N, 512, 16, 4)  — bottleneck LSTM output
+            x4_out: (N, 512, 32, 8)  — deepest-skip LSTM output
+            x3:     (N, 256, 64, 16) — encoder skip
+            x2:     (N, 128, 128, 32) — encoder skip
+            x1:     (N, 64, 256, 64) — encoder skip
+
+        Returns:
+            output: (N, 1, 256, 512)
+        """
+        x = self.up1(x5_out, x4_out)
+        x = self.up2(x, x3)
+        x = self.up3(x, x2)
+        x = self.up4(x, x1)
+        x = self.up5(x)
+        x = self.up6(x)
+        x = self.up7(x)
+        return self.final_sigmoid(self.outc(x))
+
     def forward(self, x_seq, state=None):
         """Forward pass over a sequence of radar frames.
+
+        Uses batched encoder/decoder for GPU efficiency: the encoder and decoder
+        process all T frames in a single pass (reshaped as B*T batch), while only
+        the ConvLSTM cells step sequentially over time.  This is valid because the
+        encoder/decoder are frame-independent (shared weights, GroupNorm), and the
+        ConvLSTM cells operate on small feature maps (16x4 and 32x8).
 
         Args:
             x_seq: (B, T, 1, H, W) radar sequence. Also accepts (B, 1, H, W) single frame.
@@ -191,7 +245,6 @@ class UNet1ConvLSTM(nn.Module):
             state_out: ((h1,c1),(h2,c2)) — final hidden states in float32
         """
         if x_seq.dim() == 4:
-            # Single frame (B, 1, H, W) -> add time dim -> (B, 1, 1, H, W)
             x_seq = x_seq.unsqueeze(1)
 
         B, T = x_seq.shape[:2]
@@ -202,37 +255,36 @@ class UNet1ConvLSTM(nn.Module):
         else:
             (h1, c1), (h2, c2) = state
 
-        outputs = []
+        # --- Batched encoder: (B, T, 1, H, W) → (B*T, 1, H, W) → features ---
+        x_flat = x_seq.reshape(B * T, *x_seq.shape[2:])
+        enc1, enc2, enc3, enc4, enc5 = self._encode(x_flat)
+
+        # Reshape to (B, T, C, H, W) for temporal indexing
+        enc4_t = enc4.reshape(B, T, *enc4.shape[1:])
+        enc5_t = enc5.reshape(B, T, *enc5.shape[1:])
+
+        # Capture dtype for LSTM→decoder casting (may be bf16 under autocast)
+        enc_dtype = enc5.dtype
+
+        # --- Sequential ConvLSTM on small feature maps only ---
+        lstm1_outs = []
+        lstm2_outs = []
         for t in range(T):
-            frame = x_seq[:, t]  # (B, 1, H, W)
+            x5_proj = self.proj_in1(enc5_t[:, t])
+            h1, c1 = self.convlstm1(x5_proj, h1, c1)
+            lstm1_outs.append(self.proj_out1(h1.to(enc_dtype)))
 
-            # Encode current frame with shared weights
-            x1 = self.inc(frame)    # (B, 64,  256, 64)
-            x2 = self.down1(x1)     # (B, 128, 128, 32)
-            x3 = self.down2(x2)     # (B, 256,  64, 16)
-            x4 = self.down3(x3)     # (B, 512,  32,  8)
-            x5 = self.down4(x4)     # (B, 512,  16,  4)
+            x4_proj = self.proj_in2(enc4_t[:, t])
+            h2, c2 = self.convlstm2(x4_proj, h2, c2)
+            lstm2_outs.append(self.proj_out2(h2.to(enc_dtype)))
 
-            # ConvLSTM cell 1: bottleneck (x5)
-            x5_proj = self.proj_in1(x5)              # (B, 256, 16, 4)
-            h1, c1  = self.convlstm1(x5_proj, h1, c1)
-            x5_out  = self.proj_out1(h1.to(x5.dtype))  # (B, 512, 16, 4)
+        # Stack LSTM outputs: (B, T, C, H, W) → (B*T, C, H, W)
+        x5_out = torch.stack(lstm1_outs, dim=1).reshape(B * T, *lstm1_outs[0].shape[1:])
+        x4_out = torch.stack(lstm2_outs, dim=1).reshape(B * T, *lstm2_outs[0].shape[1:])
 
-            # ConvLSTM cell 2: deepest skip (x4)
-            x4_proj = self.proj_in2(x4)              # (B, 256, 32, 8)
-            h2, c2  = self.convlstm2(x4_proj, h2, c2)
-            x4_out  = self.proj_out2(h2.to(x4.dtype))  # (B, 512, 32, 8)
+        # --- Batched decoder: all T frames at once ---
+        output = self._decode(x5_out, x4_out, enc3, enc2, enc1)
 
-            # Decode using temporal features + current-frame skips
-            x = self.up1(x5_out, x4_out)   # (B, 256, 32,  8)
-            x = self.up2(x, x3)             # (B, 128, 64, 16)
-            x = self.up3(x, x2)             # (B,  64, 128, 32)
-            x = self.up4(x, x1)             # (B,  64, 256, 64)
-            x = self.up5(x)                 # (B,  64, 256, 128)
-            x = self.up6(x)                 # (B,  64, 256, 256)
-            x = self.up7(x)                 # (B,  64, 256, 512)
-            outputs.append(self.final_sigmoid(self.outc(x)))  # (B, 1, 256, 512)
-
-        out = torch.stack(outputs, dim=1)       # (B, T, 1, 256, 512)
+        out = output.reshape(B, T, *output.shape[1:])
         state_out = ((h1, c1), (h2, c2))
         return out, state_out

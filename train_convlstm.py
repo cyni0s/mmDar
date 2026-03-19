@@ -291,7 +291,8 @@ def train(args):
     # ------------------------------------------------------------------
     # Model
     # ------------------------------------------------------------------
-    model = UNet1ConvLSTM(n_channels=1, n_classes=1).to(device)
+    model = UNet1ConvLSTM(n_channels=1, n_classes=1,
+                          use_checkpointing=args.gradient_checkpointing).to(device)
 
     try:
         from torchinfo import summary as ti_summary
