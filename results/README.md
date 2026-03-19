@@ -5,7 +5,7 @@
 | Experiment | Chamfer (m) | Mod-Hausdorff (m) | IoU | F1 | Precision | Recall | Notes |
 |------------|-------------|-------------------|-----|-----|-----------|--------|-------|
 | Paper (reported) | 0.36 | 0.24 | — | — | — | — | RadarHD ICRA 2023 |
-| **5090-optimized** | **0.308** | **0.189** | — | — | — | — | batch=12, lr=7e-5, bf16, epoch 20 |
+| **5090-optimized** | **0.308** | **0.189** | 0.033 | 0.064 | 0.134 | 0.043 | batch=12, lr=7e-5, bf16, epoch 20 |
 | baseline_pretrained | 0.363 | 0.247 | 0.026 | 0.051 | 0.119 | 0.033 | Authors' pretrained 120.pt_gen |
 | baseline_paper_params | 0.399 | 0.277 | 0.025 | 0.050 | 0.134 | 0.031 | batch=6, lr=1e-4, fp32, best.pt_gen of 200 epochs |
 | baseline_5090_adapted | 0.537 | 0.378 | 0.013 | 0.025 | 0.082 | 0.015 | batch=48, lr=8e-4, bf16, best.pt_gen of 200 epochs |
@@ -75,7 +75,8 @@ Training loss continues to decrease over 400 epochs, but test metrics peak early
 | 24 | bf16 | 908 | ~1.15 min | ~1.9h | ~3.8h |
 | 48 | bf16 | 454 | ~1.3 min | ~2.2h | ~4.3h |
 
-*Inference on full test set (18,575 samples): ~550s (~9 min). Evaluation: ~2-3 min.*
+*Inference on full test set (18,575 samples): ~550s (~9 min) at batch=1. Evaluation: ~2-3 min.*
+*Data loading (train+test into RAM): ~15 min per Docker container launch.*
 
 ### Convergence Notes
 
@@ -131,3 +132,19 @@ python3 eval/eval_pointcloud.py \
 
 Results are written to `results/<experiment-name>/metrics.json` and `metrics.csv`.
 Update the Comparison Table above with the `median` values from the JSON output.
+
+## Future Experiments
+
+Ideas to test separately from the main architectural ablation. Each should be isolated to avoid confounding.
+
+- **Data augmentation**: random horizontal flip, intensity jitter, azimuth noise. The baseline already overfits by epoch 20 — augmentation may significantly extend the useful training window. Must be tested independently of architecture changes.
+- **Learned initial state**: make ConvLSTM (h0, c0) trainable parameters instead of zero-init. May improve cold-start (T=1..5) performance.
+- **Frame repetition warm-up**: repeat the first frame N times to prime ConvLSTM before processing real frames. Alternative cold-start strategy.
+- **Multiple seeds**: run each experiment with 3 seeds (0, 42, 123) and report mean+std for statistical rigor.
+- **Streaming drift**: evaluate ConvLSTM with indefinitely long sequences (>>41 frames) to test whether hidden state saturates or drifts.
+- **Cross-trajectory transfer**: does ConvLSTM state from one environment generalize to another?
+- **Non-overlapping contiguous chunks + TBPTT**: redesign dataset for true streaming training (no stride-1 sliding windows) to enable cross-batch state carry.
+- **Expanded ConvLSTM levels**: add ConvLSTM to remaining 3 skip connection levels (5 total) if 2-cell results are promising.
+- **Alternative temporal models**: 3D convolutions (R(2+1)D), Temporal Shift Modules (TSM), bottleneck self-attention — different temporal fusion paradigms for comparison.
+- **Batched inference**: current inference uses batch=1, massively underutilizing the GPU. Inference batch size does not affect outputs (BatchNorm uses frozen running stats, no gradients computed). Bumping to batch=16-32 should cut inference from ~9 min to ~1-2 min per checkpoint.
+- **Multi-config runner**: each experiment currently launches a fresh Docker container and reloads all data (~15 min overhead). A single script that loads data once and trains multiple configs sequentially would eliminate this repeated cost.

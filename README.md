@@ -12,7 +12,7 @@ Each improvement is isolated and ablated so the contribution of each change is m
 | Experiment | Chamfer (m) | Mod-Hausdorff (m) | IoU | F1 | Notes |
 |------------|-------------|-------------------|-----|-----|-------|
 | Paper (reported) | 0.36 | 0.24 | — | — | RadarHD ICRA 2023 |
-| **5090-optimized** | **0.308** | **0.189** | — | — | batch=12, lr=7e-5, bf16, epoch 20 (32 min) |
+| **5090-optimized** | **0.308** | **0.189** | 0.033 | 0.064 | batch=12, lr=7e-5, bf16, epoch 20 (32 min) |
 | baseline_pretrained | 0.363 | 0.247 | 0.026 | 0.051 | Authors' pretrained 120.pt_gen |
 | baseline_paper_params | 0.399 | 0.277 | 0.025 | 0.050 | batch=6, lr=1e-4, fp32, best.pt_gen |
 
