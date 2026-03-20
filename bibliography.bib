@@ -294,6 +294,97 @@
 }
 
 % =============================================================================
+% DENSE POINT CLOUD GENERATION FROM mmWAVE (closest to our task)
+% =============================================================================
+
+@inproceedings{xie2023mmpoint,
+  title     = {mmPoint: Dense Human Point Cloud Generation from mmWave},
+  author    = {Xie, Qian and Deng, Qianyi and Cheng, Ta-Ying and Zhao, Peijun
+               and Patel, Amir and Trigoni, Niki and Markham, Andrew},
+  booktitle = {British Machine Vision Conference (BMVC)},
+  year      = {2023},
+  url       = {https://www.cs.ox.ac.uk/files/14371/BMVC-2023-mmPoint.pdf},
+  % [TASK] Dense human body point cloud generation from single mmWave radar frame
+  % [METHOD] Multi-Modal Encoder (MNet radar encoder + EdgeConv point cloud encoder)
+  %          + Multi-Resolution Decoder with Lift-and-Deform Modules (LDM).
+  %          Three-step progressive densification: 256 → 512 → 1024 → 2048 points.
+  %          Template human point cloud deformed by predicted residuals (Δx,Δy,Δz)
+  %          conditioned on radar features.
+  % [INPUT] Complex-valued 4D radar tensor (16×64×64×8) = Doppler×Range×Azimuth×Elevation
+  %         from TI IWR1843BOOST. Post-FFT but KEEPS complex values.
+  %         Preprocessed via HuPR pipeline. MNet encoder processes this as a 64×64 image
+  %         with 16 channels (mean-pooled over elevation).
+  % [OUTPUT] Dense point cloud: 2,048 points (x,y,z) representing human body shape
+  % [LOSS] Chamfer distance (L1, bidirectional) + uniform distribution loss (repulsion)
+  % [KEY FINDING] Chamfer 2.92 (×10^-2) vs mmMesh 10.65. Progressive 3-step deformation
+  %              outperforms 1-step (2.92 vs 3.83). Template + deformation is easier to
+  %              learn than direct point generation from latent vector.
+  % [HARDWARE] TI IWR1843BOOST (3TX × 4RX = 12 virtual antennas). Dataset: HuPR, 58 scenes.
+  % [RELEVANCE TO US]
+  %   SIMILAR: Same TI radar family. Complex input. Chamfer metric. Single-pass.
+  %            Lift-and-Deform decoder architecture directly reusable for our Stage 3.
+  %   DIFFERENT: Human body only (known shape class → fixed template).
+  %              Our problem: arbitrary environments (no template possible).
+  %              They use post-FFT tensor (complex but already beamformed to 64 azimuth bins).
+  %              We want pre-azimuth-FFT (8 antennas) to learn beamforming and exceed 64-bin limit.
+  %              They don't do super-resolution — just densify existing sparse detections.
+  %              Their MNet encoder is real-valued CNN on complex input (not true CVNN).
+  % [GAP] Single object class with template prior. No learned beamforming. No CVNN.
+  %        No attempt to exceed FFT angular resolution. Not applicable to general scenes.
+}
+
+@inproceedings{rcidunet2025,
+  title     = {RCI-DUNet: Efficient Complex-Valued Deep Unrolling Network for Multiview MIMO Radar Coincidence Imaging},
+  author    = {Unknown},
+  year      = {2025},
+  url       = {https://www.researchgate.net/publication/395435715},
+  % [TASK] MIMO radar coincidence imaging via deep unrolling
+  % [METHOD] Complex-valued deep unrolling of ISTA/ADMM — transforms iterative sparse
+  %          recovery into K fixed feedforward layers. ComplexLinear layers learn the
+  %          measurement matrix and thresholding parameters.
+  % [INPUT] Complex-valued MIMO radar measurements
+  % [KEY FINDING] Preserves phase coherence. Resolves correlation mismatches.
+  %              Dramatically reduces compute vs traditional compressed sensing.
+  %              Validates that unrolled networks work for complex radar inverse problems.
+  % [RELEVANCE TO US] Closest existing paper to our proposed Stage 1 (unrolled beamformer).
+  %   Same mathematical formulation: y = Ax + n, solve for x via learned ISTA layers.
+  %   Difference: imaging (2D image output), not 3D point cloud generation.
+  % [GAP] 2D imaging output, not 3D point clouds. No point cloud decoder stage.
+}
+
+@inproceedings{accor2025,
+  title     = {ACCOR: Attention-Enhanced Complex-Valued Contrastive Learning for Occluded Object Classification Using mmWave Radar IQ Signals},
+  author    = {Unknown},
+  year      = {2025},
+  url       = {https://arxiv.org/abs/2512.11556},
+  % [TASK] Occluded object classification from raw mmWave IQ signals
+  % [METHOD] Complex-valued processing + multi-head attention on antenna dimension
+  % [INPUT] Raw IQ radar signals (complex-valued)
+  % [KEY FINDING] Complex-valued attention across antennas captures angular dependencies.
+  %              Closest existing work to complex cross-antenna attention for beamforming.
+  % [RELEVANCE TO US] Validates complex-valued attention on antenna dimension.
+  %   Our proposed Stage 1 alternative (#3 ranked) uses the same concept.
+  % [GAP] Classification task, not point cloud generation.
+}
+
+% =============================================================================
+% DEEP UNROLLING / LEARNED INVERSE SOLVERS (architecture references)
+% =============================================================================
+
+@article{attention_unrolling2024,
+  title     = {Attention-Refined Unrolling for Sparse Sequential Micro-Doppler Reconstruction},
+  author    = {Unknown},
+  journal   = {IEEE Transactions on Signal Processing},
+  year      = {2024},
+  url       = {https://ieeexplore.ieee.org/document/10543012},
+  % [TASK] Sparse micro-Doppler reconstruction from radar
+  % [METHOD] Attention-refined deep unrolling — combines unrolled ISTA with attention
+  % [INPUT] Radar measurements (sequential)
+  % [KEY FINDING] Adding attention to unrolled layers improves sparse recovery quality
+  % [RELEVANCE TO US] Shows attention + unrolling can be combined effectively for radar
+}
+
+% =============================================================================
 % IMAGE SUPER-RESOLUTION (architecture references)
 % =============================================================================
 
