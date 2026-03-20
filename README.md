@@ -140,19 +140,29 @@ mmDar/
 
 This section documents all modifications from the [upstream RadarHD repository](https://github.com/akarsh-prabhakara/RadarHD). The original model architecture (`UNet1`), dataloader, and loss function (`BCELoss + DiceLoss`) are **untouched** — Phase 2 adds a new model variant alongside them.
 
-### Phase 2: ConvLSTM Temporal Modeling
+### Phase 2: ConvLSTM Temporal Modeling (Negative Result)
 
-| Change | Purpose |
-|--------|---------|
-| ConvLSTM bottleneck architecture (`UNet1ConvLSTM`) | Temporal modeling via 2 ConvLSTM cells at bottleneck + deepest skip connection. Single-frame shared encoder, GroupNorm throughout. ~41M params vs ~30M baseline. |
-| Batched encoder/decoder forward pass | GPU efficiency: encoder and decoder process all T frames as a single `B*T` batch; only ConvLSTM cells step sequentially on small feature maps (16x4, 32x8). Eliminates 41 sequential full-UNet passes. |
-| Trajectory-aware data loading (`SequentialDataset`, `TrajectoryBatchSampler`) | Replaces baseline's 41-channel stacking with proper temporal sequence access. Stateless pre-computed epoch schedule, safe for multi-worker loading. |
-| Dense supervision with weighted timestep loss | Loss computed at every timestep (final=1.0, intermediate=0.2), normalized by weight sum to keep gradient scale comparable to single-frame baseline. |
-| Truncated BPTT training strategy | Train with short sequences (T=8), evaluate at full T=41. Zero-init state per batch — no cross-batch state carry. |
-| ConvLSTM training script (`train_convlstm.py`) | Per-window BPTT, validation-based early stopping, fp32/bf16 AMP, gradient checkpointing support. |
-| ConvLSTM inference with T-curve evaluation (`test_convlstm.py`) | Evaluates at T={1,4,8,16,32,41} to measure metrics vs history length. |
-| Temporal consistency metric | Frame-to-frame Chamfer distance within trajectories, added to `eval_pointcloud.py`. |
-| `--model convlstm` flag in `run_experiment.py` | End-to-end experiment runner dispatches to ConvLSTM training/eval pipeline. |
+**Hypothesis:** Sequential temporal modeling via ConvLSTM at the U-Net bottleneck would improve spatial precision by learning frame-to-frame dynamics.
+
+**Result:** ConvLSTM Chamfer 0.603m — **2× worse** than the baseline (0.295m). The approach is a dead end for this task.
+
+| Experiment | Chamfer (m) | Mod-H (m) | IoU | F1 |
+|------------|-------------|-----------|------|------|
+| 5090-optimized baseline | **0.295** | **0.189** | 0.054 | 0.102 |
+| Pretrained baseline | 0.363 | 0.247 | 0.026 | 0.051 |
+| ConvLSTM T=8 ep30 | 0.603 | 0.467 | 0.026 | 0.051 |
+
+**Code added** (all additive — baseline untouched):
+
+| File | Purpose |
+|------|---------|
+| `train_test_utils/model.py` — `ConvLSTMCell`, `UNet1ConvLSTM` | 2 ConvLSTM cells (bottleneck + deepest skip), GroupNorm, batched encoder/decoder forward, 27.5M params |
+| `train_test_utils/dataloader.py` — `SequentialDataset`, `TrajectoryBatchSampler` | Trajectory-aware temporal data loading with stateless pre-computed epoch schedules |
+| `train_convlstm.py` | Training: dense supervision, truncated BPTT, fp32/bf16 AMP, gradient checkpointing |
+| `test_convlstm.py` | Inference with T-curve evaluation at T={1,4,8,16,32,41} |
+| `eval/eval_pointcloud.py` — `temporal_consistency()` | Frame-to-frame Chamfer distance within trajectories |
+| `run_experiment.py` — `--model convlstm` | End-to-end experiment dispatch |
+| `tests/test_convlstm.py`, `test_dataloader.py`, `test_training.py`, `test_eval.py` | 61 tests covering all new code |
 
 ### Infrastructure
 
@@ -196,6 +206,10 @@ The `legacy_cartesian` mode reproduces the paper's eval pipeline within 3% (Cham
 
 ### Lessons Learned
 
+- **Temporal modeling via ConvLSTM does not improve this task — spatial precision is the bottleneck, not temporal dynamics.** The baseline's 41-channel stacking fuses all frames at full resolution in the first conv layer. ConvLSTM delays temporal fusion until after heavy downsampling (16×4 bottleneck, 32×8 skip), losing the fine spatial detail that Chamfer distance measures. IoU/F1 stayed at baseline level (coarse occupancy was correct), but Chamfer/mod-H doubled (spatial precision was destroyed). The lesson: for radar-to-lidar translation, *where* temporal fusion happens matters more than *how* — early fusion at full resolution beats late fusion at compressed resolution.
+- **Truncated BPTT (T=8 train → T=41 eval) causes distribution shift.** LSTM hidden state at steps 9-41 enters distributions never seen during training, compounding the architectural disadvantage. Both Codex (gpt-5.4) and Gemini (2.5-pro) independently diagnosed this as the primary failure mode.
+- **Dense supervision can backfire.** With T=8 and intermediate_weight=0.2, the 7 intermediate timesteps contribute total weight 1.4 vs 1.0 for the final step. This optimizes more for short-term predictions than final-step quality — "short-sighted" training penalized at eval.
+- **Streaming inference cost is nearly identical.** ConvLSTM streaming (1 frame + carry state) = 2.9ms vs baseline (41-channel forward) = 2.2ms. The ConvLSTM's architectural disadvantage is not offset by meaningful latency improvement.
 - **Checkpoint selection by training loss is unreliable.** BCE+Dice loss in polar space correlates poorly with Cartesian point-cloud metrics (Chamfer/mod-Hausdorff). A run with 12% lower training loss produced 15% worse Chamfer distance. Select checkpoints by evaluating test metrics on saved periodic checkpoints instead.
 - **Batch size 12 is optimal on RTX 5090.** Sweeping batch sizes 6/12/16/24/48 shows batch=12 gives the best Chamfer distance. Batch=6 (original paper) is too noisy, batch>=24 overfits. BatchNorm statistics noise at small batch sizes provides implicit regularization critical for this UNet architecture.
 - **LR=7e-5 beats the paper's 1e-4.** A systematic LR sweep (5e-5, 7e-5, 1e-4, 1.5e-4) found 7e-5 optimal at batch=12, achieving Chamfer 0.308m — 15% better than the pretrained model (0.363m).

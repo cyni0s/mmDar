@@ -9,6 +9,7 @@
 | baseline_pretrained | 0.363 | 0.247 | 0.026 | 0.051 | 0.119 | 0.033 | Authors' pretrained 120.pt_gen |
 | baseline_paper_params | 0.399 | 0.277 | 0.025 | 0.050 | 0.134 | 0.031 | batch=6, lr=1e-4, fp32, best.pt_gen of 200 epochs |
 | baseline_5090_adapted | 0.537 | 0.378 | 0.013 | 0.025 | 0.082 | 0.015 | batch=48, lr=8e-4, bf16, best.pt_gen of 200 epochs |
+| convlstm_T8_ep30 | 0.603 | 0.467 | 0.026 | 0.050 | 0.073 | 0.038 | **Negative result.** batch=8, lr=7e-5, fp32, T=8 TBPTT, 30 epochs (10.4h) |
 
 *All table values are median over 18,575 test samples using `--coordinate-mode legacy_cartesian`. Checkpoints selected by Chamfer distance sweep unless noted as best.pt_gen (training loss).*
 
@@ -133,13 +134,24 @@ python3 eval/eval_pointcloud.py \
 Results are written to `results/<experiment-name>/metrics.json` and `metrics.csv`.
 Update the Comparison Table above with the `median` values from the JSON output.
 
-## Realized Efficiency Improvements
+## Phase 2: ConvLSTM Temporal Modeling (Negative Result)
 
-Optimizations implemented and validated during Phase 2 development.
+**Hypothesis:** ConvLSTM cells at the U-Net bottleneck and deepest skip would improve spatial precision by learning temporal dynamics across radar frames.
 
-- **Batched encoder/decoder forward pass**: UNet1ConvLSTM reshapes `(B, T, C, H, W)` to `(B*T, C, H, W)` for encoder and decoder, running all frames in a single GPU-efficient pass. Only the ConvLSTM cells (on small 16x4 and 32x8 feature maps) step sequentially. Eliminates T sequential full-UNet passes. GroupNorm is batch-size-invariant so results are numerically identical.
-- **Truncated BPTT**: train with short sequences (T=8), evaluate at full T=41. With zero-init state per batch, the model learns temporal features over 8 frames and generalizes to longer horizons at eval time. Combined with batched forward, reduces epoch time from ~72 min to an estimated ~5-10 min.
-- **fp32 precision for final quality**: sweep confirmed fp32 achieves 4% better Chamfer than bf16 at the same config (0.295m vs 0.308m) and peaks earlier (epoch 10 vs 20), so wall-clock time to best is similar despite ~35% slower per-epoch throughput. Use bf16 for sweeps, fp32 for final results.
+**Architecture:** UNet1ConvLSTM — single-frame encoder (1ch, GroupNorm), 2 ConvLSTM cells (bottleneck 16×4 + skip 32×8), shared decoder. 27.5M params (vs 17.5M baseline). Batched encoder/decoder forward pass for GPU efficiency.
+
+**Training:** batch=8, lr=7e-5, fp32, truncated BPTT (T=8), dense supervision (final=1.0, intermediate=0.2), 30 epochs, 10.4h on RTX 5090.
+
+**Result:** Chamfer 0.603m — 2× worse than baseline (0.295m).
+
+**Why it failed:**
+1. The baseline's 41-channel stacking fuses frames at full resolution (256×64) in the first conv layer — all spatial detail is available for cross-frame interaction. ConvLSTM delays fusion until after heavy downsampling (16×4, 32×8), losing the spatial precision that Chamfer measures.
+2. T=8 training → T=41 eval creates hidden state distribution shift at steps 9-41.
+3. Dense supervision with intermediate_weight=0.2 over-weights short-term predictions (total intermediate weight 1.4 vs final weight 1.0).
+
+**Inference cost:** ConvLSTM streaming = 2.9ms/frame vs baseline = 2.2ms/frame. No meaningful latency advantage.
+
+**Conclusion:** This task is fundamentally about spatial precision in the decoder, not temporal dynamics. The 41-channel stacking is the correct temporal fusion strategy for fixed-length sequences where spatial accuracy dominates.
 
 ## Future Experiments
 
