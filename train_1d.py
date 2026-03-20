@@ -28,6 +28,29 @@ from train_test_utils.dataloader import Dataset
 from train_test_utils.dice_score import dice_loss
 
 
+class CachedDataset(torch.utils.data.Dataset):
+    """Wraps a Dataset and caches all samples in RAM on first access.
+
+    The baseline Dataset loads 41 PNGs per __getitem__ call. For fast models
+    (like Azimuth1DNet at 88ms/step), data loading dominates at ~16s/step.
+    This cache eliminates I/O after the first epoch. dataset_5 is ~336MB,
+    fits easily in RAM.
+    """
+
+    def __init__(self, dataset):
+        self.dataset = dataset
+        self.cache = [None] * len(dataset)
+        self._filled = False
+
+    def __len__(self):
+        return len(self.dataset)
+
+    def __getitem__(self, index):
+        if self.cache[index] is None:
+            self.cache[index] = self.dataset[index]
+        return self.cache[index]
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description='Train Azimuth1DNet (1D ablation)')
     parser.add_argument('--batch', type=int, default=12)
@@ -101,18 +124,20 @@ def train(args):
     print(f'  device={device}, git={git_sha}')
     print(f'{"=" * 60}\n')
 
-    # Datasets — reuse baseline Dataset class
+    # Datasets — reuse baseline Dataset class, cache in RAM for fast models
     print('Loading datasets...')
-    train_dataset = Dataset(args.basepath, 'train',
-                            ABINS_LIDAR_ORIG=512, M=M)
-    test_dataset = Dataset(args.basepath, 'test',
-                           ABINS_LIDAR_ORIG=512, M=M)
+    train_dataset = CachedDataset(Dataset(args.basepath, 'train',
+                                          ABINS_LIDAR_ORIG=512, M=M))
+    test_dataset = CachedDataset(Dataset(args.basepath, 'test',
+                                         ABINS_LIDAR_ORIG=512, M=M))
 
+    # num_workers=0 with caching: first epoch populates cache (slow),
+    # subsequent epochs serve from RAM (fast). Workers would duplicate cache.
     train_loader = DataLoader(train_dataset, batch_size=args.batch,
-                              shuffle=True, num_workers=args.num_workers,
+                              shuffle=True, num_workers=0,
                               pin_memory=(device.type == 'cuda'))
     test_loader = DataLoader(test_dataset, batch_size=args.batch,
-                             shuffle=False, num_workers=args.num_workers,
+                             shuffle=False, num_workers=0,
                              pin_memory=(device.type == 'cuda'))
 
     print(f'  Train: {len(train_dataset)} samples')
