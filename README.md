@@ -140,6 +140,20 @@ mmDar/
 
 This section documents all modifications from the [upstream RadarHD repository](https://github.com/akarsh-prabhakara/RadarHD). The original model architecture (`UNet1`), dataloader, and loss function (`BCELoss + DiceLoss`) are **untouched** — Phase 2 adds a new model variant alongside them.
 
+### Phase 2: Reusable Infrastructure
+
+Built during ConvLSTM development, usable by any future model variant:
+
+| Change | File(s) | Purpose |
+|--------|---------|---------|
+| `norm_type` parameter | `train_test_utils/unet_parts.py` | All building blocks (DoubleConv, Down, Up, Up_nocat) accept `norm_type='batch'` (default) or `'group'`. Enables GroupNorm variants without duplicating block code. |
+| Temporal consistency metric | `eval/eval_pointcloud.py` — `temporal_consistency()` | Frame-to-frame Chamfer distance within trajectories. Evaluates any model's output stability. |
+| Multi-model experiment runner | `run_experiment.py` — `--model` flag | Dispatch pattern for training/eval across model variants. Currently supports `baseline` and `convlstm`. |
+| Trajectory-aware data loading | `train_test_utils/dataloader.py` — `SequentialDataset`, `TrajectoryBatchSampler`, `seq_collate_fn` | Temporal sequence access with stateless pre-computed epoch schedules. Safe for `num_workers>0`. Reusable by any sequential/temporal model. |
+| T-curve evaluation pattern | `test_convlstm.py` | Evaluates at T={1,4,8,16,32,41} to measure metrics vs history length. Pattern applicable to any temporal model. |
+| Test infrastructure | `tests/conftest.py`, `tests/__init__.py` | Shared fixtures (device selection, reproducibility). 61 tests across 5 test files. |
+| Training script template | `train_convlstm.py` | `params.json` logging, TensorBoard integration, validation-based checkpointing, `--dry_run` smoke test, gradient checkpointing. Pattern for future training scripts. |
+
 ### Phase 2: ConvLSTM Temporal Modeling (Negative Result)
 
 **Hypothesis:** Sequential temporal modeling via ConvLSTM at the U-Net bottleneck would improve spatial precision by learning frame-to-frame dynamics.
@@ -152,17 +166,13 @@ This section documents all modifications from the [upstream RadarHD repository](
 | Pretrained baseline | 0.363 | 0.247 | 0.026 | 0.051 |
 | ConvLSTM T=8 ep30 | 0.603 | 0.467 | 0.026 | 0.051 |
 
-**Code added** (all additive — baseline untouched):
+**ConvLSTM-specific code** (all additive — baseline untouched):
 
 | File | Purpose |
 |------|---------|
 | `train_test_utils/model.py` — `ConvLSTMCell`, `UNet1ConvLSTM` | 2 ConvLSTM cells (bottleneck + deepest skip), GroupNorm, batched encoder/decoder forward, 27.5M params |
-| `train_test_utils/dataloader.py` — `SequentialDataset`, `TrajectoryBatchSampler` | Trajectory-aware temporal data loading with stateless pre-computed epoch schedules |
-| `train_convlstm.py` | Training: dense supervision, truncated BPTT, fp32/bf16 AMP, gradient checkpointing |
-| `test_convlstm.py` | Inference with T-curve evaluation at T={1,4,8,16,32,41} |
-| `eval/eval_pointcloud.py` — `temporal_consistency()` | Frame-to-frame Chamfer distance within trajectories |
-| `run_experiment.py` — `--model convlstm` | End-to-end experiment dispatch |
-| `tests/test_convlstm.py`, `test_dataloader.py`, `test_training.py`, `test_eval.py` | 61 tests covering all new code |
+| `train_convlstm.py` | ConvLSTM training: dense supervision, truncated BPTT, fp32/bf16 AMP |
+| `test_convlstm.py` | ConvLSTM inference with T-curve evaluation |
 
 ### Infrastructure
 
