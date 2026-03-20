@@ -28,34 +28,41 @@ from train_test_utils.dataloader import Dataset
 from train_test_utils.dice_score import dice_loss
 
 
-class PreloadedDataset(torch.utils.data.Dataset):
-    """Preloads an entire Dataset into RAM tensors at init time.
+class TensorDataset(torch.utils.data.Dataset):
+    """Loads pre-computed stacked tensors from a .pt file.
 
-    The baseline Dataset loads 41 PNGs per __getitem__ call (~16s/step for
-    fast models). This preloads everything into contiguous tensors once,
-    then serves from RAM with zero I/O. dataset_5 is ~336MB, fits easily.
+    Use precompute_dataset.py to create these files once. Then training
+    loads in seconds instead of hours.
+
+    Fallback: if .pt file doesn't exist, loads from PNGs (slow).
     """
 
-    def __init__(self, dataset):
-        n = len(dataset)
-        print(f'    Preloading {n} samples into RAM...', end=' ', flush=True)
+    def __init__(self, pt_path, fallback_dataset=None):
         import time
-        t0 = time.time()
-
-        # Load first sample to get shapes
-        x0, y0 = dataset[0]
-        self.X = torch.empty(n, *x0.shape)
-        self.Y = torch.empty(n, *y0.shape)
-        self.X[0] = x0
-        self.Y[0] = y0
-
-        for i in range(1, n):
-            self.X[i], self.Y[i] = dataset[i]
-            if (i + 1) % 5000 == 0:
-                print(f'{i+1}/{n}', end=' ', flush=True)
-
-        elapsed = time.time() - t0
-        print(f'done ({elapsed:.0f}s, {self.X.element_size() * self.X.nelement() / 1e9:.1f}GB)')
+        if os.path.exists(pt_path):
+            print(f'    Loading {pt_path}...', end=' ', flush=True)
+            t0 = time.time()
+            data = torch.load(pt_path, weights_only=True)
+            self.X = data['X']
+            self.Y = data['Y']
+            elapsed = time.time() - t0
+            print(f'{len(self.X)} samples in {elapsed:.1f}s')
+        elif fallback_dataset is not None:
+            print(f'    {pt_path} not found, loading from PNGs (slow)...')
+            n = len(fallback_dataset)
+            x0, y0 = fallback_dataset[0]
+            self.X = torch.empty(n, *x0.shape)
+            self.Y = torch.empty(n, *y0.shape)
+            self.X[0] = x0
+            self.Y[0] = y0
+            for i in range(1, n):
+                self.X[i], self.Y[i] = fallback_dataset[i]
+                if (i + 1) % 2000 == 0:
+                    print(f'      {i+1}/{n}')
+            print(f'    Loaded {n} samples')
+        else:
+            raise FileNotFoundError(f'{pt_path} not found. Run: '
+                                    'docker compose run --rm mmdar python3 train_1d.py --precompute')
 
     def __len__(self):
         return self.X.shape[0]
@@ -137,12 +144,18 @@ def train(args):
     print(f'  device={device}, git={git_sha}')
     print(f'{"=" * 60}\n')
 
-    # Datasets — preload into RAM for fast models (eliminates 41-PNG-per-sample I/O)
+    # Datasets — load from pre-computed .pt files (fast) or fall back to PNGs (slow)
     print('Loading datasets...')
-    train_dataset = PreloadedDataset(Dataset(args.basepath, 'train',
-                                             ABINS_LIDAR_ORIG=512, M=M))
-    test_dataset = PreloadedDataset(Dataset(args.basepath, 'test',
-                                            ABINS_LIDAR_ORIG=512, M=M))
+    train_pt = os.path.join(args.basepath, f'train_{args.n_channels}ch.pt')
+    test_pt = os.path.join(args.basepath, f'test_{args.n_channels}ch.pt')
+    train_dataset = TensorDataset(train_pt,
+                                   fallback_dataset=Dataset(args.basepath, 'train',
+                                                            ABINS_LIDAR_ORIG=512, M=M)
+                                   if not os.path.exists(train_pt) else None)
+    test_dataset = TensorDataset(test_pt,
+                                  fallback_dataset=Dataset(args.basepath, 'test',
+                                                           ABINS_LIDAR_ORIG=512, M=M)
+                                  if not os.path.exists(test_pt) else None)
 
     train_loader = DataLoader(train_dataset, batch_size=args.batch,
                               shuffle=True, num_workers=0,
