@@ -1,0 +1,355 @@
+% mmDar Project Bibliography
+% Papers relevant to radar-to-lidar translation, complex-valued radar processing,
+% and radar point cloud generation.
+%
+% Tags in comments:
+%   [TASK] = what the paper does
+%   [METHOD] = architecture/approach
+%   [INPUT] = what radar representation they use
+%   [KEY FINDING] = most relevant result for our work
+%   [GAP] = what they DON'T do that we're interested in
+
+% =============================================================================
+% RADAR-TO-LIDAR TRANSLATION (direct predecessors)
+% =============================================================================
+
+@inproceedings{prabhakara2023radarhd,
+  title     = {High Resolution Point Clouds from mmWave Radar},
+  author    = {Prabhakara, Akarsh and Jin, Tao and Das, Arnav and Bhatt, Gantavya
+               and Kumari, Lilly and Soltanaghai, Elahe and Bilmes, Jeff
+               and Kumar, Swarun and Rowe, Anthony},
+  booktitle = {IEEE International Conference on Robotics and Automation (ICRA)},
+  year      = {2023},
+  pages     = {4135--4142},
+  doi       = {10.1109/ICRA48891.2023.10161429},
+  % [TASK] Radar-to-lidar polar image translation (256x64 -> 256x512)
+  % [METHOD] Asymmetric U-Net with 41-channel stacked radar input, BCE+Dice loss
+  % [INPUT] FFT magnitude only, uint8 PNG, 5% threshold, per-frame normalized
+  % [KEY FINDING] Chamfer 0.36m (reported), our reproduction 0.363m, our optimized 0.295m
+  % [GAP] Discards phase, quantizes to uint8, thresholds weak returns
+}
+
+@inproceedings{hunt2024radcloud,
+  title     = {RadCloud: Real-Time High-Resolution Point Cloud Generation Using Low-Cost mmWave Radar},
+  author    = {Hunt, Liam and others},
+  booktitle = {ACM MobiCom},
+  year      = {2024},
+  url       = {https://arxiv.org/abs/2403.05964},
+  % [TASK] Radar-to-lidar translation, optimized for UAV/UGV real-time
+  % [METHOD] U-Net encoder-decoder, 2.25x fewer params than RadarHD
+  % [INPUT] Range-azimuth magnitude, threshold at 45dB below max, normalized to [0,1]. Phase discarded.
+  % [KEY FINDING] Real-time >15fps on Intel NUC. Chirp-based approach resilient to motion.
+  % [GAP] Same as RadarHD: magnitude-only, phase discarded. Same pipeline limitation.
+}
+
+@article{radarsfd2025,
+  title     = {RadarSFD: Single-Frame Diffusion with Pretrained Priors for Radar Point Clouds},
+  author    = {Unknown},
+  journal   = {arXiv preprint arXiv:2509.18068},
+  year      = {2025},
+  url       = {https://arxiv.org/abs/2509.18068},
+  % [TASK] Radar-to-lidar via latent diffusion, single-frame
+  % [METHOD] Frozen TAESD VAE + U-Net initialized from Marigold depth estimator.
+  %          Channel-wise latent concatenation for conditioning. L1+SSIM+LPIPS loss.
+  % [INPUT] BEV radar image (magnitude-only). Phase discarded.
+  % [KEY FINDING] Chamfer 0.35m single-frame on RadarHD benchmark (vs RadarHD 0.44m with 41 frames).
+  %              Geometric priors from depth estimation transfer well to radar-to-lidar.
+  % [GAP] Still magnitude-only input. Diffusion may worsen symmetric Chamfer (see luan2024diffusion).
+}
+
+% =============================================================================
+% RADAR POINT CLOUD SUPER-RESOLUTION / DENSIFICATION
+% =============================================================================
+
+@inproceedings{luan2024diffusion,
+  title     = {Diffusion-Based Point Cloud Super-Resolution for mmWave Radar Data},
+  author    = {Luan, Kai and Shi, others},
+  booktitle = {IEEE Intelligent Transportation Systems Conference (ITSC)},
+  year      = {2024},
+  url       = {https://arxiv.org/abs/2404.06012},
+  % [TASK] 3D radar point cloud densification via diffusion
+  % [METHOD] Mean-reverting SDE diffusion with time-dependent U-Net. BEV representation.
+  % [INPUT] Processed point clouds (not raw). 5-frame aggregation.
+  % [KEY FINDING] CD 0.19m on VOD dataset. BUT on RadarHD dataset: CD 0.59m (worse than RadarHD 0.44m).
+  %              WARNING: denser output can WORSEN symmetric Chamfer/MHD.
+  % [GAP] Operates on point clouds, not raw data. Magnitude-only.
+}
+
+@article{zheng2025r2ldm,
+  title     = {R2LDM: An Efficient 4D Radar Super-Resolution Framework Leveraging Diffusion Model},
+  author    = {Zheng, others},
+  journal   = {arXiv preprint arXiv:2503.17097},
+  year      = {2025},
+  url       = {https://arxiv.org/abs/2503.17097},
+  % [TASK] 4D radar point cloud densification
+  % [METHOD] Latent Voxel Diffusion Model + Latent Point Cloud Reconstruction module
+  % [INPUT] 4D radar point clouds (not raw)
+  % [KEY FINDING] 6-10x densification, U-Net backbone outperformed transformer/MLP alternatives.
+  %              31.7% improvement in registration recall, 24.9% in detection accuracy.
+  % [GAP] Point cloud input, not raw radar. No complex-valued processing.
+}
+
+@article{wang2025rvdiff,
+  title     = {Diffusion-Based mmWave Radar Point Cloud Enhancement Driven by Range Images},
+  author    = {Wang, others},
+  journal   = {arXiv preprint arXiv:2503.02300},
+  year      = {2025},
+  url       = {https://arxiv.org/abs/2503.02300},
+  % [TASK] Radar point cloud enhancement via diffusion conditioned on range images
+  % [METHOD] Diffusion conditioned on multi-channel radar range images (64x64x16)
+  % [INPUT] Range image projection (not raw I/Q)
+  % [KEY FINDING] Range image representation outperforms BEV by 10-15% in ablations.
+  %              Argues range images preserve more geometric structure than BEV.
+  % [GAP] Still processed representation. No phase information.
+}
+
+@article{hasan2024mmcasgan,
+  title     = {mm-CasGAN: A cascaded adversarial neural framework for mmWave radar point cloud enhancement},
+  author    = {Hasan, others},
+  journal   = {Information Fusion},
+  year      = {2024},
+  url       = {https://www.sciencedirect.com/science/article/pii/S1566253524001660},
+  % [TASK] Progressive radar point cloud refinement
+  % [METHOD] Cascaded GAN stages, each targeting higher resolution. Hybrid loss
+  %          (adversarial + geometric + consistency).
+  % [INPUT] Processed point clouds
+  % [KEY FINDING] Progressive multi-stage refinement outperforms single-shot approaches.
+  % [GAP] Point cloud input, not raw radar.
+}
+
+% =============================================================================
+% COMPLEX-VALUED / PHASE-AWARE RADAR PROCESSING
+% =============================================================================
+
+@inproceedings{fuchs2021cvnn,
+  title     = {Complex-valued Convolutional Neural Networks for Enhanced Radar Signal Denoising and Interference Mitigation},
+  author    = {Fuchs, Alexander and Rock, Johanna and Toth, Mate and Meissner, Paul and Pernkopf, Franz},
+  booktitle = {IEEE Radar Conference},
+  year      = {2021},
+  url       = {https://arxiv.org/abs/2105.00929},
+  % [TASK] Radar signal denoising and interference mitigation
+  % [METHOD] True CVNN — all operations (conv, activation, norm) in complex domain
+  % [INPUT] Complex-valued radar signals (I/Q)
+  % [KEY FINDING] Phase preservation is "crucial for further processing, such as angle estimation."
+  %              CVNNs show increased data efficiency, faster training, and substantially
+  %              improved phase conservation vs real-valued networks.
+  % [GAP] Denoising task, not point cloud generation. But the phase argument applies directly to us.
+}
+
+@inproceedings{hagele2025radarfusenet,
+  title     = {RadarFuseNet: Complex-Valued Attention-Based Fusion of IQ Time- and Frequency-Domain Radar Features},
+  author    = {Hagele, Misik and Steinbach, others},
+  booktitle = {IEEE Radar Conference (RadarConf)},
+  year      = {2025},
+  url       = {https://arxiv.org/html/2512.11537v1},
+  % [TASK] Occluded object classification from radar
+  % [METHOD] Two complex-valued CNNs (one on raw IQ time-domain, one on FFT frequency-domain)
+  %          fused via bidirectional cross-attention. All ops in complex domain.
+  % [INPUT] Raw complex IQ + complex FFT output
+  % [KEY FINDING] Processing "intact signal phasor" outperforms split representations.
+  %              FFT alone provides richer features than raw IQ, but FUSING BOTH is best
+  %              (91.99% -> 94.20%). All operations must stay complex to avoid info loss.
+  % [GAP] Classification task, not point cloud generation. But the IQ+FFT fusion idea is
+  %        directly applicable: we have both raw I/Q and FFT data available.
+}
+
+@inproceedings{gao2018cvcnn,
+  title     = {Enhanced Radar Imaging Using a Complex-Valued Convolutional Neural Network},
+  author    = {Gao, Jingkun and others},
+  journal   = {arXiv preprint arXiv:1712.10096},
+  year      = {2018},
+  url       = {https://arxiv.org/abs/1712.10096},
+  % [TASK] mm-wave radar imaging (SAR/ISAR context)
+  % [METHOD] CV-CNN with two radar-specific modifications
+  % [INPUT] Complex-valued radar data
+  % [KEY FINDING] Superior imaging quality and computational efficiency vs real-valued CNN
+  % [GAP] SAR/ISAR imaging, not FMCW point cloud generation. Different radar type.
+}
+
+% =============================================================================
+% MAGNITUDE + PHASE AS 2-CHANNEL REAL-VALUED INPUT
+% =============================================================================
+
+@inproceedings{li2023azimuth,
+  title     = {Azimuth Super-Resolution for FMCW Radar in Autonomous Driving},
+  author    = {Li, others},
+  booktitle = {IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)},
+  year      = {2023},
+  url       = {https://openaccess.thecvf.com/content/CVPR2023/papers/Li_Azimuth_Super-Resolution_for_FMCW_Radar_in_Autonomous_Driving_CVPR_2023_paper.pdf},
+  % [TASK] FMCW radar azimuth angular super-resolution
+  % [METHOD] Standard deep model with complex ADC data split into real+imag as 2 channels
+  % [INPUT] Complex ADC data as 2 real channels (NOT a CVNN)
+  % [KEY FINDING] Complex input used for azimuth SR. Compared against magnitude-domain baselines
+  %              but not same-backbone ablation. Improves radar's own angular resolution.
+  % [GAP] Improves radar resolution, does NOT produce lidar-quality output. No lidar replacement goal.
+}
+
+@inproceedings{liu2023echofusion,
+  title     = {Echoes Beyond Points: Unleashing the Power of Raw Radar Data in Multi-modality Fusion},
+  author    = {Liu, Yang and others},
+  booktitle = {Advances in Neural Information Processing Systems (NeurIPS)},
+  year      = {2023},
+  url       = {https://arxiv.org/abs/2307.16532},
+  % [TASK] 3D object detection via radar+camera fusion
+  % [METHOD] Radar spectrum features (pre-CFAR) fused with camera via polar-aligned attention
+  % [INPUT] Complex pre-CFAR RT spectrum as magnitude+phase 2 channels
+  % [KEY FINDING] Skipping CFAR preserves weak signals. MP (mag+phase) beats IQ (real+imag)
+  %              in ablation: 84.92 vs 82.64 BEV AP@0.7. Approaches lidar-only performance.
+  %              Argues CFAR thresholding is "suboptimal for deep fusion."
+  % [GAP] Detection (bounding boxes), not point cloud generation. Radar+camera fusion, not radar-only.
+}
+
+@inproceedings{czerkawski2022input,
+  title     = {On Input Formats for Radar Micro-Doppler Signature Processing by Convolutional Neural Networks},
+  author    = {Czerkawski, Mikolaj and others},
+  booktitle = {IET International Radar Conference (Radar)},
+  year      = {2022},
+  url       = {https://strathprints.strath.ac.uk/81409/},
+  % [TASK] Micro-Doppler classification (gesture/activity recognition)
+  % [METHOD] Standard CNN with 5-way input format comparison
+  % [INPUT] Compared: magnitude-only, phase-only, mag+phase (2ch), real+imag (2ch), all-4-channel
+  % [KEY FINDING] Cleanest controlled ablation found. Mag+phase (0.938) beats magnitude-only (0.920).
+  %              Phase carries useful discriminative information. Polar representation > rectangular.
+  % [GAP] Classification task, not point cloud generation. Different radar application entirely.
+}
+
+@inproceedings{rebut2022fftradnet,
+  title     = {Raw High-Definition Radar for Multi-Task Learning},
+  author    = {Rebut, Julien and others},
+  booktitle = {IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)},
+  year      = {2022},
+  url       = {https://openaccess.thecvf.com/content/CVPR2022/papers/Rebut_Raw_High-Definition_Radar_for_Multi-Task_Learning_CVPR_2022_paper.pdf},
+  % [TASK] Multi-task: free-space segmentation + vehicle detection from radar
+  % [METHOD] FFT-RadNet — encoder-decoder with radar-specific FFT layers
+  % [INPUT] Complex range-Doppler spectrum, real+imag stacked as channels
+  % [KEY FINDING] Raw radar data (pre-CFAR) enables multi-task learning. No phase ablation reported.
+  % [GAP] Detection/segmentation tasks, not point cloud generation.
+}
+
+% =============================================================================
+% RADAR ANGULAR SUPER-RESOLUTION (signal processing approach)
+% =============================================================================
+
+@article{zhang2024srspecnet,
+  title     = {SR-SPECNet: Redefining Automotive Radar Imaging},
+  author    = {Zhang, others},
+  journal   = {arXiv preprint arXiv:2406.07399},
+  year      = {2024},
+  url       = {https://arxiv.org/abs/2406.07399},
+  % [TASK] Radar azimuth angular super-resolution from raw antenna signals
+  % [METHOD] 4-layer MLP (1M params) treating each range-Doppler bin independently (1D problem)
+  % [INPUT] Raw antenna array signals (complex-valued)
+  % [KEY FINDING] 1M-param MLP outperforms 31M 2D U-Net and 52M 3D U-Net. Reframes angular SR
+  %              as per-range-bin DOA estimation. Weights approximate adaptive beamforming.
+  % [GAP] Raw antenna signals, not image-to-image. Would need reformulation for our pipeline.
+  %        But the insight that angular SR is fundamentally 1D is relevant to our 1D ablation.
+}
+
+% =============================================================================
+% RADAR DATA REPRESENTATION SURVEYS
+% =============================================================================
+
+@article{zhou2024representations,
+  title     = {Exploring Radar Data Representations in Autonomous Driving: A Comprehensive Review},
+  author    = {Zhou, others},
+  journal   = {arXiv preprint arXiv:2312.04861},
+  year      = {2024},
+  url       = {https://arxiv.org/html/2312.04861v2},
+  % [TASK] Survey of radar data representations for autonomous driving
+  % [METHOD] Compares: ADC signals, radar tensors (post-FFT), point clouds (post-CFAR),
+  %          grid maps, micro-Doppler
+  % [KEY FINDING] ADC signals "retain all information from the detections" but lack spatial
+  %              coherence. Each processing stage trades information for interpretability.
+  %              The representation choice fundamentally limits what the network can learn.
+}
+
+% =============================================================================
+% RADAR NeRF / NEURAL RADIANCE FIELDS
+% =============================================================================
+
+@inproceedings{rafidashti2025neuradar,
+  title     = {NeuRadar: Neural Radiance Fields for Automotive Radar Point Clouds},
+  author    = {Rafidashti, others},
+  booktitle = {CVPR Workshop},
+  year      = {2025},
+  url       = {https://arxiv.org/abs/2504.00859},
+  % [TASK] Joint NeRF for radar + camera + lidar synthesis
+  % [METHOD] Probabilistic radar modeling via Multi-Bernoulli Random Finite Sets
+  % [INPUT] Point clouds (not raw radar)
+  % [KEY FINDING] First NeRF jointly synthesizing radar+camera+lidar
+  % [GAP] Point cloud input, not raw radar. Novel view synthesis, not point cloud generation.
+}
+
+@article{lei2023sarnerf,
+  title     = {SAR-NeRF: Neural Radiance Fields for Synthetic Aperture Radar Multi-View Representation},
+  author    = {Lei, others},
+  journal   = {arXiv preprint arXiv:2307.05087},
+  year      = {2023},
+  url       = {https://arxiv.org/abs/2307.05087},
+  % [TASK] NeRF for SAR imaging
+  % [METHOD] Models complex-valued scattering via differentiable rendering
+  % [INPUT] Raw complex SAR data
+  % [KEY FINDING] Works with complex-valued data in a neural rendering framework
+  % [GAP] SAR domain, not FMCW mmWave. Very different signal model.
+}
+
+% =============================================================================
+% IMAGE SUPER-RESOLUTION (architecture references)
+% =============================================================================
+
+@inproceedings{chen2023hat,
+  title     = {Activating More Pixels in Image Super-Resolution Transformer},
+  author    = {Chen, Xiangyu and others},
+  booktitle = {IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)},
+  year      = {2023},
+  url       = {https://arxiv.org/abs/2309.05239},
+  % [TASK] Image super-resolution
+  % [METHOD] HAT — Hybrid Attention Transformer combining channel attention + window
+  %          self-attention + overlapping cross-attention
+  % [KEY FINDING] SOTA on image SR benchmarks. Activates more pixels than prior transformers.
+  % [GAP] Natural images, not radar. But the hybrid attention pattern is applicable to our decoder.
+}
+
+% =============================================================================
+% UNSUPERVISED / ALTERNATIVE RADAR APPROACHES
+% =============================================================================
+
+@article{radarinv2025,
+  title     = {Unsupervised Radar Point Cloud Enhancement via Arbitrary LiDAR Guided Diffusion Prior},
+  author    = {Unknown},
+  journal   = {arXiv preprint arXiv:2505.09887},
+  year      = {2025},
+  url       = {https://arxiv.org/abs/2505.09887},
+  % [TASK] Radar point cloud enhancement without paired training data
+  % [METHOD] Latent diffusion with LiDAR domain prior, Bayesian inverse problem formulation
+  % [INPUT] Radar point clouds (not raw)
+  % [KEY FINDING] No paired radar-lidar data required. Comparable to supervised RadarHD.
+  % [GAP] Point cloud input. Unsupervised approach is complementary, not competitive.
+}
+
+@article{rald2025,
+  title     = {RaLD: Generating High-Resolution 3D Radar Point Clouds with Latent Diffusion},
+  author    = {Unknown},
+  journal   = {arXiv preprint arXiv:2511.07067},
+  year      = {2025},
+  url       = {https://arxiv.org/abs/2511.07067},
+  % [TASK] High-resolution 3D radar point cloud generation
+  % [METHOD] Latent diffusion conditioned on raw radar SPECTRUM (not point cloud, not raw I/Q)
+  % [INPUT] Radar spectrum (post-FFT, pre-CFAR) — richer than point clouds but not raw I/Q
+  % [KEY FINDING] Conditioning on radar spectrum preserves richer information than point clouds.
+  %              Input representation matters more than architecture choice.
+  % [GAP] Uses spectrum (post-FFT), not raw I/Q. Doesn't preserve phase.
+}
+
+@inproceedings{denserradar2024,
+  title     = {DenserRadar: A 4D Millimeter-Wave Radar Point Cloud Detector Using Dense LiDAR Point Clouds as Labels},
+  author    = {Unknown},
+  journal   = {arXiv preprint arXiv:2405.05131},
+  year      = {2024},
+  url       = {https://arxiv.org/abs/2405.05131},
+  % [TASK] 4D radar point cloud densification
+  % [METHOD] 3D U-Net on raw 4D radar tensors + cross-attention
+  % [INPUT] Raw 4D radar tensors (post-FFT, pre-CFAR)
+  % [KEY FINDING] Working with raw tensors (not point clouds) improves density/resolution
+  % [GAP] 4D radar (different hardware). Still post-FFT, no complex-valued processing.
+}
