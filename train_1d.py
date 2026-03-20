@@ -28,27 +28,40 @@ from train_test_utils.dataloader import Dataset
 from train_test_utils.dice_score import dice_loss
 
 
-class CachedDataset(torch.utils.data.Dataset):
-    """Wraps a Dataset and caches all samples in RAM on first access.
+class PreloadedDataset(torch.utils.data.Dataset):
+    """Preloads an entire Dataset into RAM tensors at init time.
 
-    The baseline Dataset loads 41 PNGs per __getitem__ call. For fast models
-    (like Azimuth1DNet at 88ms/step), data loading dominates at ~16s/step.
-    This cache eliminates I/O after the first epoch. dataset_5 is ~336MB,
-    fits easily in RAM.
+    The baseline Dataset loads 41 PNGs per __getitem__ call (~16s/step for
+    fast models). This preloads everything into contiguous tensors once,
+    then serves from RAM with zero I/O. dataset_5 is ~336MB, fits easily.
     """
 
     def __init__(self, dataset):
-        self.dataset = dataset
-        self.cache = [None] * len(dataset)
-        self._filled = False
+        n = len(dataset)
+        print(f'    Preloading {n} samples into RAM...', end=' ', flush=True)
+        import time
+        t0 = time.time()
+
+        # Load first sample to get shapes
+        x0, y0 = dataset[0]
+        self.X = torch.empty(n, *x0.shape)
+        self.Y = torch.empty(n, *y0.shape)
+        self.X[0] = x0
+        self.Y[0] = y0
+
+        for i in range(1, n):
+            self.X[i], self.Y[i] = dataset[i]
+            if (i + 1) % 5000 == 0:
+                print(f'{i+1}/{n}', end=' ', flush=True)
+
+        elapsed = time.time() - t0
+        print(f'done ({elapsed:.0f}s, {self.X.element_size() * self.X.nelement() / 1e9:.1f}GB)')
 
     def __len__(self):
-        return len(self.dataset)
+        return self.X.shape[0]
 
     def __getitem__(self, index):
-        if self.cache[index] is None:
-            self.cache[index] = self.dataset[index]
-        return self.cache[index]
+        return self.X[index], self.Y[index]
 
 
 def parse_args():
@@ -124,15 +137,13 @@ def train(args):
     print(f'  device={device}, git={git_sha}')
     print(f'{"=" * 60}\n')
 
-    # Datasets — reuse baseline Dataset class, cache in RAM for fast models
+    # Datasets — preload into RAM for fast models (eliminates 41-PNG-per-sample I/O)
     print('Loading datasets...')
-    train_dataset = CachedDataset(Dataset(args.basepath, 'train',
-                                          ABINS_LIDAR_ORIG=512, M=M))
-    test_dataset = CachedDataset(Dataset(args.basepath, 'test',
-                                         ABINS_LIDAR_ORIG=512, M=M))
+    train_dataset = PreloadedDataset(Dataset(args.basepath, 'train',
+                                             ABINS_LIDAR_ORIG=512, M=M))
+    test_dataset = PreloadedDataset(Dataset(args.basepath, 'test',
+                                            ABINS_LIDAR_ORIG=512, M=M))
 
-    # num_workers=0 with caching: first epoch populates cache (slow),
-    # subsequent epochs serve from RAM (fast). Workers would duplicate cache.
     train_loader = DataLoader(train_dataset, batch_size=args.batch,
                               shuffle=True, num_workers=0,
                               pin_memory=(device.type == 'cuda'))
