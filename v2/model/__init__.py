@@ -1,1 +1,149 @@
 # v2/model — physics-informed complex-valued beamformer modules
+"""Full model assembly for mmDar v2.
+
+Combines the three-stage pipeline into two top-level model classes:
+
+    RadarPointCloudModel:
+        Stage 1 (LISTABeamformer) -> Stage 2 (Stage2Bridge) -> Stage 3 (PointCloudDecoder)
+        Input:  (B, 8, 512) complex64
+        Output: (B, 8192, 3) float32 pts, (B, 8192, 1) float32 conf logits
+
+    MagnitudeBaseline:
+        Stage 1 (FFTBeamformer) -> real Conv1d bridge -> Stage 3 (PointCloudDecoder)
+        Same I/O shape; no learned beamforming, no complex ops.
+        Use as fair single-frame comparison (same decoder, no phase).
+
+Helper:
+    set_stage1_frozen(model, frozen: bool):
+        Freeze/unfreeze Stage 1 (LISTA beamformer) parameters for staged training.
+"""
+
+import torch
+import torch.nn as nn
+
+from v2.model.cvnn import safe_modulus
+from v2.model.lista import FFTBeamformer, LISTABeamformer, Stage2Bridge
+from v2.model.decoder import PointCloudDecoder
+
+
+class RadarPointCloudModel(nn.Module):
+    """Full 3-stage model: LISTA beamformer -> Stage2Bridge -> PointCloudDecoder.
+
+    Pipeline:
+        1. LISTABeamformer: (B, 8, 512) complex64 -> (B, N_az, 512) complex64
+        2. Stage2Bridge:    (B, N_az, 512) complex64 -> (B, bridge_out_ch, 512) float32
+        3. PointCloudDecoder: (B, bridge_out_ch, 512) float32 ->
+                              pts  (B, 8192, 3) float32
+                              conf (B, 8192, 1) float32 logits
+
+    Args:
+        K:            Number of LISTA unrolling layers (default 5)
+        N_az:         Number of angular bins in beamformer output (default 256)
+        bridge_out_ch: Number of output channels from Stage2Bridge (default 128)
+    """
+
+    def __init__(self, K: int = 5, N_az: int = 256, bridge_out_ch: int = 128) -> None:
+        super().__init__()
+        self.beamformer = LISTABeamformer(K=K, N_az=N_az)
+        self.bridge = Stage2Bridge(in_ch=N_az, out_ch=bridge_out_ch)
+        self.decoder = PointCloudDecoder(feature_ch=bridge_out_ch)
+
+    def forward(
+        self, y: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """End-to-end forward pass.
+
+        Args:
+            y: Raw radar input, shape (B, 8, 512) complex64
+
+        Returns:
+            pts:  (B, 8192, 3) float32 predicted point cloud
+            conf: (B, 8192, 1) float32 per-point confidence logits (pre-sigmoid)
+        """
+        # Stage 1: LISTA angular super-resolution beamforming
+        angular_spec = self.beamformer(y)    # (B, N_az, 512) complex64
+
+        # Stage 2: Complex feature extraction + modulus (complex -> real)
+        features = self.bridge(angular_spec)  # (B, bridge_out_ch, 512) float32
+
+        # Stage 3: Residual point cloud decoder
+        pts, conf = self.decoder(features)    # (B, 8192, 3), (B, 8192, 1)
+
+        return pts, conf
+
+
+class MagnitudeBaseline(nn.Module):
+    """Single-frame magnitude-only baseline for fair comparison.
+
+    Uses FFTBeamformer (no learned Stage 1) instead of LISTA. The complex
+    FFT output is converted to magnitude via safe_modulus before the bridge,
+    which uses a real-valued Conv1d (not complex ops).
+
+    This provides a fair comparison:
+        - Same decoder architecture as RadarPointCloudModel
+        - Same number of angular bins (N_az)
+        - No learned beamforming, no phase information
+        - No temporal stacking (single-frame, unlike the 41-frame 0.295m baseline)
+
+    Args:
+        N_az:         Number of angular bins (default 256); matches LISTABeamformer
+        bridge_out_ch: Number of output channels from bridge (default 128)
+    """
+
+    def __init__(self, N_az: int = 256, bridge_out_ch: int = 128) -> None:
+        super().__init__()
+        self.beamformer = FFTBeamformer(N_az=N_az)
+        # Real-valued bridge: magnitude input -> feature map
+        # N_az channels -> bridge_out_ch channels, GroupNorm + ReLU
+        self.bridge = nn.Sequential(
+            nn.Conv1d(N_az, bridge_out_ch, kernel_size=3, padding=1),
+            nn.GroupNorm(16, bridge_out_ch),
+            nn.ReLU(inplace=True),
+        )
+        self.decoder = PointCloudDecoder(feature_ch=bridge_out_ch)
+
+    def forward(
+        self, y: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """End-to-end forward pass (magnitude-only, no phase).
+
+        Args:
+            y: Raw radar input, shape (B, 8, 512) complex64
+
+        Returns:
+            pts:  (B, 8192, 3) float32 predicted point cloud
+            conf: (B, 8192, 1) float32 per-point confidence logits (pre-sigmoid)
+        """
+        # Stage 1: FFT beamforming (no learning)
+        spec = self.beamformer(y)              # (B, N_az, 512) complex64
+
+        # Discard phase — take magnitude only
+        spec_mag = safe_modulus(spec)          # (B, N_az, 512) float32, non-negative
+
+        # Real-valued bridge: Conv1d + GroupNorm + ReLU
+        features = self.bridge(spec_mag)       # (B, bridge_out_ch, 512) float32
+
+        # Stage 3: Same decoder as RadarPointCloudModel
+        pts, conf = self.decoder(features)
+
+        return pts, conf
+
+
+def set_stage1_frozen(model: nn.Module, frozen: bool) -> None:
+    """Freeze or unfreeze Stage 1 (LISTA beamformer) parameters.
+
+    During staged training: freeze Stage 1 for the first N epochs so the
+    decoder learns from a fixed beamformer, then unfreeze for joint fine-tuning.
+
+    For RadarPointCloudModel: freezes model.beamformer parameters.
+    For MagnitudeBaseline: no-op (FFTBeamformer has no learnable parameters).
+
+    Args:
+        model:  A RadarPointCloudModel or MagnitudeBaseline instance
+        frozen: If True, beamformer params are frozen (requires_grad=False).
+                If False, beamformer params are unfrozen (requires_grad=True).
+    """
+    if not hasattr(model, "beamformer"):
+        return
+    for p in model.beamformer.parameters():
+        p.requires_grad = not frozen
