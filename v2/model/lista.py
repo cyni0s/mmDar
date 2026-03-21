@@ -206,7 +206,10 @@ class LISTABeamformer(nn.Module):
                 return torch.log(torch.exp(t) - 1.0).item()
 
             raw_alpha = inv_softplus(alpha_init)
-            raw_lam = inv_softplus(0.1)
+            # lam_init=0.01: smaller threshold prevents over-thresholding at init.
+            # lam=0.1 was empirically too aggressive — after 2 LISTA steps the signal
+            # collapses to zero even for a high-SNR matched-filter input.
+            raw_lam = inv_softplus(0.01)
 
             for layer in self.lista_layers:
                 layer.alpha_raw.fill_(raw_alpha)
