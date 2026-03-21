@@ -42,8 +42,11 @@ import zipfile
 from datetime import datetime, timezone
 
 import numpy as np
-import pandas as pd
-import torch
+
+# pandas and torch are imported lazily inside functions that need them so that
+# the pure signal-processing functions (process_frame_tdm_mimo, dc_correct, etc.)
+# remain testable on the host without Docker or a full Python environment.
+# Functions that require these libraries import them at call time.
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -225,6 +228,7 @@ def build_frame_table(
     radar_ts = np.linspace(t_start, t_end, n_radar)
 
     # Read lidar timestamps (column 4 = Unix seconds float)
+    import pandas as pd  # noqa: lazy import
     df_ts = pd.read_csv(lidar_csv_path, header=None, usecols=[4])
     lidar_raw = df_ts.iloc[:, 0].to_numpy()
     lidar_adj = np.unique(lidar_raw - OFFSET_HOURS * 3600)  # adjust to radar UTC
@@ -263,8 +267,6 @@ def lidar_fps_fixed(pts_xyz: np.ndarray, n_pts: int = N_LIDAR_PTS) -> np.ndarray
     -------
     np.ndarray, shape (n_pts, 3), float32
     """
-    import open3d as o3d  # noqa: imported here for test isolation
-
     # Filter to scene volume BEFORE FPS (important: FPS on pre-filtered points)
     x, y, z = pts_xyz[:, 0], pts_xyz[:, 1], pts_xyz[:, 2]
     mask = (
@@ -279,7 +281,8 @@ def lidar_fps_fixed(pts_xyz: np.ndarray, n_pts: int = N_LIDAR_PTS) -> np.ndarray
         return np.zeros((n_pts, 3), dtype=np.float32)
 
     if len(filtered) >= n_pts:
-        # FPS subsampling via open3d
+        # FPS subsampling via open3d (lazy import — not available on host, only in Docker)
+        import open3d as o3d  # noqa: lazy import
         pcd = o3d.geometry.PointCloud()
         pcd.points = o3d.utility.Vector3dVector(filtered.astype(np.float64))
         fps_pcd = pcd.farthest_point_down_sample(n_pts)
@@ -306,6 +309,7 @@ def parse_lidar_csv(csv_path: str) -> dict:
     -------
     dict mapping float timestamp -> np.ndarray shape (M, 3) float64
     """
+    import pandas as pd  # noqa: lazy import — only needed for CSV parsing
     df = pd.read_csv(csv_path, header=None, names=["x", "y", "z", "intensity", "ts"])
     lidar_by_ts = {}
     for ts, group in df.groupby("ts"):
@@ -434,6 +438,7 @@ def process_trajectory(
     lidar_pt_path = os.path.join(output_dir, f"lidar_{traj_id}.pt")
     norm_pt_path = os.path.join(output_dir, f"norm_{traj_id}.pt")
 
+    import torch  # noqa: lazy import — only needed at save time
     torch.save(torch.from_numpy(radar_array), radar_pt_path)
     torch.save(torch.from_numpy(lidar_array), lidar_pt_path)
     torch.save(torch.from_numpy(norm_array), norm_pt_path)
