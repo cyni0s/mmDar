@@ -33,7 +33,12 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from v2.model.cvnn import complex_soft_threshold
+from v2.model.cvnn import (
+    complex_soft_threshold,
+    ComplexConv1d,
+    ComplexGroupNorm,
+    safe_modulus,
+)
 
 
 def build_steering_matrix(N_az: int = 256) -> torch.Tensor:
@@ -279,3 +284,45 @@ class FFTBeamformer(nn.Module):
         x_fft = torch.fft.fftshift(x_fft, dim=1)
 
         return x_fft
+
+
+class Stage2Bridge(nn.Module):
+    """Stage 2 feature bridge: maps LISTA output to real-valued feature map.
+
+    Takes the complex angular spectrum from LISTABeamformer (B, in_ch, R) and
+    maps it to a real-valued feature tensor (B, out_ch, R) suitable for the
+    real-valued Phase 3 decoder.
+
+    Pipeline:
+        1. ComplexConv1d (in_ch -> out_ch, kernel_size=3, padding=1) — complex channel mixing
+        2. ComplexGroupNorm — normalize complex features (approximation, see ComplexGroupNorm docstring)
+        3. safe_modulus — eps-safe complex-to-real transition (NOT torch.abs)
+
+    The safe_modulus operation (REVIEW FIX #6) avoids the undefined gradient of
+    torch.abs at zero by computing sqrt(Re^2 + Im^2 + eps), producing a non-negative
+    float tensor with finite gradients everywhere.
+
+    Args:
+        in_ch:      Number of input channels (typically 256 from LISTABeamformer)
+        out_ch:     Number of output channels (typically 128 for Phase 3 decoder)
+        num_groups: GroupNorm groups (must divide out_ch; default 16)
+    """
+
+    def __init__(self, in_ch: int = 256, out_ch: int = 128, num_groups: int = 16) -> None:
+        super().__init__()
+        self.conv = ComplexConv1d(in_ch, out_ch, kernel_size=3, padding=1)
+        self.norm = ComplexGroupNorm(num_groups, out_ch)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Stage 2 forward pass.
+
+        Args:
+            x: Complex angular spectrum, shape (B, in_ch, R) complex64
+
+        Returns:
+            Real feature map, shape (B, out_ch, R) float32, all non-negative.
+        """
+        x = self.conv(x)    # (B, out_ch, R) complex64
+        x = self.norm(x)    # (B, out_ch, R) complex64
+        x = safe_modulus(x) # (B, out_ch, R) float32, non-negative
+        return x
