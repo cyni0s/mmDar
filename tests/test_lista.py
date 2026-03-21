@@ -25,6 +25,7 @@ from v2.model.lista import (
     sin_theta_to_bin,
     LISTABeamformer,
     FFTBeamformer,
+    Stage2Bridge,
 )
 
 
@@ -201,3 +202,47 @@ def test_no_norm_in_lista():
             f"Found normalization layer '{name}': {type(mod).__name__} — "
             f"normalization inside LISTABeamformer violates CONTEXT.md locked decision"
         )
+
+
+# ---------------------------------------------------------------------------
+# Task 2 (Plan 02-02): Stage2Bridge tests
+# ---------------------------------------------------------------------------
+
+
+def test_modulus_output():
+    """Stage2Bridge output is float32, shape (B,128,512), all non-negative."""
+    bridge = Stage2Bridge(256, 128)
+    x = torch.randn(2, 256, 512, dtype=torch.complex64)
+    out = bridge(x)
+    assert out.dtype == torch.float32, f"dtype {out.dtype}, expected float32"
+    assert (out >= 0).all(), "Modulus output must be non-negative"
+
+
+def test_stage2_bridge_shape():
+    """Stage2Bridge(256,128) maps (2,256,512) complex64 to (2,128,512) float32."""
+    bridge = Stage2Bridge(256, 128)
+    x = torch.randn(2, 256, 512, dtype=torch.complex64)
+    out = bridge(x)
+    assert out.shape == (2, 128, 512), f"shape {out.shape}, expected (2,128,512)"
+    assert out.dtype == torch.float32, f"dtype {out.dtype}, expected float32"
+
+
+def test_no_real_batchnorm_in_stages():
+    """[REVIEW FIX #10] No real BatchNorm anywhere in Stage 1 (LISTA) or Stage 2 (Bridge)."""
+    lista = LISTABeamformer(K=3, N_az=64)
+    bridge = Stage2Bridge(64, 32)
+    for label, module in [("LISTABeamformer", lista), ("Stage2Bridge", bridge)]:
+        for name, mod in module.named_modules():
+            assert not isinstance(mod, (nn.BatchNorm1d, nn.BatchNorm2d, nn.BatchNorm3d)), (
+                f"Found real BatchNorm in {label}.{name}: {type(mod).__name__}"
+            )
+
+
+def test_stage2_bridge_gradient_flow():
+    """Backward pass through Stage2Bridge produces finite gradients."""
+    bridge = Stage2Bridge(64, 32)
+    x = torch.randn(1, 64, 16, dtype=torch.complex64, requires_grad=True)
+    out = bridge(x)
+    loss = out.sum()
+    loss.backward()
+    assert torch.isfinite(x.grad).all(), "Non-finite gradients in Stage2Bridge backward"
