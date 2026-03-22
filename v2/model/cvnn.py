@@ -36,39 +36,35 @@ def apply_complex(fr: nn.Module, fi: nn.Module, x: torch.Tensor) -> torch.Tensor
 
 def complex_soft_threshold(
     x: torch.Tensor,
-    lam: torch.Tensor,
+    tau: torch.Tensor,
     eps: float = 1e-8,
 ) -> torch.Tensor:
     """Complex soft-thresholding (shrinkage) with eps-safe modulus.
 
-    Shrinks the magnitude of x by softplus(lam) while preserving phase.
+    Shrinks the magnitude of x by tau while preserving phase.
     Handles zero-magnitude inputs gracefully (no NaN gradient at 0).
 
     Implementation:
         mag = sqrt(x.real^2 + x.imag^2 + eps)   # eps-safe, finite gradient at 0
-        shrunk = relu(mag - softplus(lam))         # non-negative residual magnitude
+        shrunk = relu(mag - tau)                   # non-negative residual magnitude
         out = (shrunk / mag) * x                   # phase preserved, magnitude shrunk
 
-    REVIEW FIX #5: softplus enforces non-negative threshold (lam is raw learned value)
     REVIEW FIX #6: eps in modulus prevents NaN gradient at zero-magnitude inputs
 
     Args:
         x:   Complex input tensor (any shape, complex64 or complex128)
-        lam: Raw threshold parameter (real scalar or tensor); effective threshold
-             is F.softplus(lam), which is always positive.
+        tau: Pre-computed threshold value (real scalar or tensor), already positive.
+             Caller is responsible for bounding tau (e.g. via sigmoid).
         eps: Small constant for numerical stability in modulus (default 1e-8)
 
     Returns:
-        Complex tensor with same shape as x; zero where |x| <= softplus(lam).
+        Complex tensor with same shape as x; zero where |x| <= tau.
     """
     # eps-safe modulus — avoids undefined gradient at |x|=0
     mag = (x.real ** 2 + x.imag ** 2 + eps).sqrt()
 
-    # Effective threshold is always positive via softplus
-    effective_lam = F.softplus(lam)
-
     # Shrink magnitude, clamp to zero (relu), preserve phase
-    shrunk = F.relu(mag - effective_lam)
+    shrunk = F.relu(mag - tau)
 
     # Divide by mag (eps already added, so no div-by-zero)
     return (shrunk / mag) * x
@@ -180,10 +176,11 @@ class ComplexConv1d(nn.Module):
         out_ch: int,
         kernel_size: int,
         padding: int = 0,
+        bias: bool = True,
     ) -> None:
         super().__init__()
-        self.conv_r = nn.Conv1d(in_ch, out_ch, kernel_size, padding=padding)
-        self.conv_i = nn.Conv1d(in_ch, out_ch, kernel_size, padding=padding)
+        self.conv_r = nn.Conv1d(in_ch, out_ch, kernel_size, padding=padding, bias=bias)
+        self.conv_i = nn.Conv1d(in_ch, out_ch, kernel_size, padding=padding, bias=bias)
         # Flatten weight to (out_ch, in_ch*kernel_size) for rayleigh_init_
         rayleigh_init_(
             self.conv_r.weight.view(out_ch, -1),

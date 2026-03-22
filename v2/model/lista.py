@@ -102,22 +102,29 @@ class LISTALayer(nn.Module):
         residual = A_eff · x_k - y           (shape B,8,512)
         grad     = A_eff^H · residual          (shape B,N_az,512)
         x_hat    = x_k - α · grad
-        x_{k+1}  = S_λ(x_hat)
+        x_{k+1}  = S_τ(x_hat)
 
-    where α = softplus(alpha_raw) > 0 and λ = softplus(lam_raw) > 0.
+    where α = softplus(alpha_raw) > 0 and τ = τ_min + (τ_max - τ_min) * sigmoid(ρ).
+
+    The threshold τ is bounded in [τ_min, τ_max] = [0.001, 0.03] via sigmoid
+    parameterization to prevent collapse (unbounded thresholds grew to 4.6 during
+    training, zeroing all beamformer output).
 
     REVIEW FIX #4: A_eff_H is passed in already conjugate-transposed.
-    REVIEW FIX #5: alpha_raw / lam_raw are raw parameters; positivity enforced
-                   by softplus in forward — never store softplus result as parameter.
 
     No normalization layers (GroupNorm/BatchNorm) — see CONTEXT.md locked decisions.
     """
 
+    # Threshold bounds — matched to typical LISTA output magnitude scale
+    TAU_MIN = 0.001
+    TAU_MAX = 0.03
+
     def __init__(self) -> None:
         super().__init__()
-        # Raw parameters — softplus applied in forward to ensure positivity
+        # Raw step-size parameter — softplus applied in forward to ensure positivity
         self.alpha_raw = nn.Parameter(torch.tensor(0.0))
-        self.lam_raw = nn.Parameter(torch.tensor(-1.0))
+        # Bounded threshold parameter: sigmoid(0.0) = 0.5 -> tau ~= 0.0155
+        self.rho = nn.Parameter(torch.tensor(0.0))
 
     def forward(
         self,
@@ -141,6 +148,9 @@ class LISTALayer(nn.Module):
         # Step size — always positive
         alpha = F.softplus(self.alpha_raw)
 
+        # Bounded threshold: tau in [TAU_MIN, TAU_MAX]
+        tau = self.TAU_MIN + (self.TAU_MAX - self.TAU_MIN) * torch.sigmoid(self.rho)
+
         # Forward model residual: A_eff @ x_k - y
         # A_eff: (8, N_az); x_k: (B, N_az, R) -> residual: (B, 8, R)
         residual = torch.einsum("mn,bnr->bmr", A_eff, x_k) - y
@@ -152,8 +162,8 @@ class LISTALayer(nn.Module):
         # Gradient step
         x_hat = x_k - alpha * grad
 
-        # Proximal operator (complex soft-thresholding)
-        x_next = complex_soft_threshold(x_hat, self.lam_raw)
+        # Proximal operator (complex soft-thresholding with bounded tau)
+        x_next = complex_soft_threshold(x_hat, tau)
         return x_next
 
 
@@ -175,9 +185,9 @@ class LISTABeamformer(nn.Module):
     Initialization:
         - A registered as non-trainable buffer from build_steering_matrix()
         - g (calibration) initialized to 1+0j (identity: A_eff = A at init)
-        - alpha_raw initialized so softplus(alpha_raw) = 1/||A||^2_F (ISTA step)
+        - alpha_raw initialized so softplus(alpha_raw) = 1/||A||^2_2 (ISTA step)
           via inverse softplus: raw = log(exp(alpha_init) - 1)
-        - lam_raw initialized so softplus(lam_raw) = 0.1
+        - rho initialized to 0.0 so sigmoid(rho) = 0.5 -> tau ~= 0.0155
 
     No GroupNorm/BatchNorm inside this module (CONTEXT.md locked decision).
     """
@@ -205,20 +215,17 @@ class LISTABeamformer(nn.Module):
             alpha_init = 1.0 / (sigma_max ** 2).item()
 
             # Inverse softplus: raw = log(exp(val) - 1)
-            # Numerically stable version: for small val, use val directly
             def inv_softplus(val: float) -> float:
                 t = torch.tensor(val, dtype=torch.float64)
                 return torch.log(torch.exp(t) - 1.0).item()
 
             raw_alpha = inv_softplus(alpha_init)
-            # lam_init=0.01: smaller threshold prevents over-thresholding at init.
-            # lam=0.1 was empirically too aggressive — after 2 LISTA steps the signal
-            # collapses to zero even for a high-SNR matched-filter input.
-            raw_lam = inv_softplus(0.01)
 
+            # rho = 0.0 -> sigmoid(0) = 0.5 -> tau = 0.001 + 0.029*0.5 = 0.0155
+            # This is a safe initial threshold that preserves most signal energy.
             for layer in self.lista_layers:
                 layer.alpha_raw.fill_(raw_alpha)
-                layer.lam_raw.fill_(raw_lam)
+                layer.rho.fill_(0.0)
 
     def forward(self, y: torch.Tensor) -> torch.Tensor:
         """LISTA beamforming forward pass.
@@ -310,7 +317,9 @@ class Stage2Bridge(nn.Module):
 
     def __init__(self, in_ch: int = 256, out_ch: int = 128, num_groups: int = 16) -> None:
         super().__init__()
-        self.conv = ComplexConv1d(in_ch, out_ch, kernel_size=3, padding=1)
+        # bias=False forces bridge to depend on actual beamformer output,
+        # preventing the decoder from learning to work from bias alone.
+        self.conv = ComplexConv1d(in_ch, out_ch, kernel_size=3, padding=1, bias=False)
         self.norm = ComplexGroupNorm(num_groups, out_ch)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:

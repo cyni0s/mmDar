@@ -28,6 +28,7 @@ from v2.train.loss import (
     confidence_loss,
     composite_loss,
     dcd_weight_schedule,
+    measurement_consistency_loss,
 )
 
 
@@ -156,7 +157,7 @@ def test_composite_loss_keys():
     gt = torch.randn(B, M, 3)
     conf = torch.randn(B, N, 1)
     losses = composite_loss(pred, gt, conf, epoch=10)
-    required_keys = {"total", "chamfer", "dcd", "coverage", "confidence"}
+    required_keys = {"total", "chamfer", "dcd", "coverage", "confidence", "measurement_consistency"}
     assert required_keys.issubset(set(losses.keys())), \
         f"Missing keys: {required_keys - set(losses.keys())}"
     for key in required_keys:

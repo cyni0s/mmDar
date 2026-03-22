@@ -34,7 +34,7 @@ import torch
 import torch.nn as nn
 from torch.utils.tensorboard import SummaryWriter
 
-from v2.model import RadarPointCloudModel, set_stage1_frozen
+from v2.model import RadarPointCloudModel, MagnitudeBaseline, set_stage1_frozen
 from v2.train.loss import composite_loss
 from v2.eval.eval_adapter import evaluate_epoch
 from v2.data.dataset import build_dataloaders
@@ -54,7 +54,7 @@ DEFAULT_CONFIG = {
     "grad_clip": 1.0,
     "lr_schedule": "cosine",
     "warmup_epochs": 3,
-    "freeze_stage1_epochs": 5,
+    "freeze_stage1_epochs": 0,
     "use_dcd_loss": True,
     "use_confidence_loss": True,
     "use_coverage_loss": True,
@@ -118,21 +118,47 @@ def train(config: dict | None = None) -> dict:
     )
 
     # --- Model ---
-    model = RadarPointCloudModel(K=5, N_az=256, bridge_out_ch=128)
+    model_type = cfg.get("model_type", "cvnn")
+    if model_type == "magnitude":
+        model = MagnitudeBaseline(N_az=256, bridge_out_ch=128)
+        print("[train] Using MagnitudeBaseline (no phase, no learned beamforming)")
+    else:
+        model = RadarPointCloudModel(K=5, N_az=256, bridge_out_ch=128)
+        print("[train] Using RadarPointCloudModel (CVNN + LISTA)")
     model = model.to(device)
 
     # Freeze Stage 1 initially (decoder-first staged training)
-    set_stage1_frozen(model, frozen=True)
-    print(f"[train] Stage 1 (LISTA) frozen for first {cfg['freeze_stage1_epochs']} epochs")
+    freeze_epochs = cfg["freeze_stage1_epochs"]
+    if freeze_epochs > 0:
+        set_stage1_frozen(model, frozen=True)
+        print(f"[train] Stage 1 (LISTA) frozen for first {freeze_epochs} epochs")
+    else:
+        print("[train] Joint training from epoch 0 (no Stage 1 freeze)")
 
     # --- Optimizer ---
-    # Only optimize unfrozen parameters at startup
-    trainable_params = [p for p in model.parameters() if p.requires_grad]
-    optimizer = torch.optim.AdamW(
-        trainable_params,
-        lr=cfg["lr"],
-        weight_decay=cfg["weight_decay"],
-    )
+    # Separate parameter groups: threshold params (rho) get smaller LR, no weight decay
+    lr = cfg["lr"]
+    weight_decay = cfg["weight_decay"]
+
+    def _build_optimizer(mdl, lr_val, wd_val):
+        """Build AdamW with separate LR for threshold (rho) parameters."""
+        threshold_params = []
+        other_params = []
+        for name, p in mdl.named_parameters():
+            if not p.requires_grad:
+                continue
+            if "rho" in name:
+                threshold_params.append(p)
+            else:
+                other_params.append(p)
+        param_groups = []
+        if other_params:
+            param_groups.append({"params": other_params, "lr": lr_val, "weight_decay": wd_val})
+        if threshold_params:
+            param_groups.append({"params": threshold_params, "lr": lr_val * 0.1, "weight_decay": 0.0})
+        return torch.optim.AdamW(param_groups)
+
+    optimizer = _build_optimizer(model, lr, weight_decay)
 
     # --- LR schedule: warmup then cosine ---
     # LinearLR ramps lr from start_factor*lr to lr over warmup_epochs steps.
@@ -172,37 +198,37 @@ def train(config: dict | None = None) -> dict:
         if not stage1_unfrozen and epoch >= cfg["freeze_stage1_epochs"]:
             set_stage1_frozen(model, frozen=False)
             stage1_unfrozen = True
-            print(f"[train] Epoch {epoch}: Unfreezing Stage 1 (LISTA beamformer)")
-
-            # Re-create optimizer with all parameters (including newly unfrozen ones)
-            # Use a smaller LR for Stage 1 to avoid disrupting pretrained beamformer
-            stage1_params = list(model.beamformer.parameters())
-            other_params = (
-                list(model.bridge.parameters()) + list(model.decoder.parameters())
-            )
-            optimizer = torch.optim.AdamW(
-                [
-                    {"params": stage1_params, "lr": cfg["lr"] * 0.1},
-                    {"params": other_params, "lr": cfg["lr"]},
-                ],
-                weight_decay=cfg["weight_decay"],
-            )
-            # Reset scheduler for the remaining epochs
-            remaining = max(1, num_epochs - epoch)
-            scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-                optimizer, T_max=remaining, eta_min=1e-7
-            )
+            if cfg["freeze_stage1_epochs"] > 0:
+                print(f"[train] Epoch {epoch}: Unfreezing Stage 1 (LISTA beamformer)")
+                # Re-create optimizer with all parameters (including newly unfrozen ones)
+                optimizer = _build_optimizer(model, lr, weight_decay)
+                # Reset scheduler for the remaining epochs
+                remaining = max(1, num_epochs - epoch)
+                scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+                    optimizer, T_max=remaining, eta_min=1e-7
+                )
 
         # --- Train epoch ---
         model.train()
-        epoch_losses = {k: 0.0 for k in ("total", "chamfer", "dcd", "coverage", "confidence")}
+        epoch_losses = {k: 0.0 for k in ("total", "chamfer", "dcd", "coverage", "confidence", "measurement_consistency")}
         n_batches = 0
+
+        # Get steering matrix for measurement consistency loss (CVNN model only)
+        has_lista = hasattr(model, "beamformer") and hasattr(model.beamformer, "A")
 
         for batch_idx, (radar, lidar, _norm_factor) in enumerate(train_loader):
             radar = radar.to(device)    # (B, 8, 512) complex64
             lidar = lidar.to(device)   # (B, 8192, 3) float32
 
-            pts, conf = model(radar)
+            # Forward with intermediate LISTA output for measurement consistency
+            if has_lista and hasattr(model, "forward_with_intermediates"):
+                pts, conf, bf_out = model.forward_with_intermediates(radar)
+                # Effective steering matrix: g * A (matching beamformer forward)
+                A_eff = model.beamformer.g.unsqueeze(-1) * model.beamformer.A
+            else:
+                pts, conf = model(radar)
+                bf_out = None
+                A_eff = None
 
             losses = composite_loss(
                 pts,
@@ -213,6 +239,9 @@ def train(config: dict | None = None) -> dict:
                 use_coverage=cfg["use_coverage_loss"],
                 use_confidence=cfg["use_confidence_loss"],
                 coverage_threshold=cfg["coverage_threshold"],
+                lista_output=bf_out,
+                radar_input=radar if bf_out is not None else None,
+                steering_matrix=A_eff,
             )
 
             optimizer.zero_grad()
@@ -254,9 +283,43 @@ def train(config: dict | None = None) -> dict:
                 f"train/{key}", epoch_losses[key] / max(1, n_batches), epoch
             )
 
-        # Log learning rate (main param group)
-        current_lr = optimizer.param_groups[-1]["lr"]
+        # Log learning rate (main param group = first group)
+        current_lr = optimizer.param_groups[0]["lr"]
         writer.add_scalar("lr", current_lr, epoch)
+
+        # --- Stage diagnostics (cheap, always logged) ---
+        # Per-stage parameter norms (detect if Stage 1 weights are changing after unfreeze)
+        with torch.no_grad():
+            s1_norm = sum(p.data.norm().item() ** 2 for p in model.beamformer.parameters()) ** 0.5
+            br_norm = sum(p.data.norm().item() ** 2 for p in model.bridge.parameters()) ** 0.5
+            dc_norm = sum(p.data.norm().item() ** 2 for p in model.decoder.parameters()) ** 0.5
+            writer.add_scalar("param_norm/stage1_beamformer", s1_norm, epoch)
+            writer.add_scalar("param_norm/stage2_bridge", br_norm, epoch)
+            writer.add_scalar("param_norm/stage3_decoder", dc_norm, epoch)
+
+            # Calibration vector g magnitude (should stay near 1.0 if hardware is good)
+            if hasattr(model.beamformer, "cal_gain"):
+                g = model.beamformer.cal_gain  # complex tensor (8,)
+                writer.add_scalar("calibration/g_mean_mag", g.abs().mean().item(), epoch)
+                writer.add_scalar("calibration/g_std_mag", g.abs().std().item(), epoch)
+
+            # Beamformer output energy (detect if LISTA is producing useful output)
+            try:
+                sample_radar = next(iter(train_loader))[0][:1].to(device)
+                bf_out = model.beamformer(sample_radar)  # (1, N_az, 512) complex
+                writer.add_scalar("beamformer/output_energy", bf_out.abs().mean().item(), epoch)
+                writer.add_scalar("beamformer/output_max", bf_out.abs().max().item(), epoch)
+            except Exception:
+                pass  # non-critical diagnostic
+
+            # LISTA threshold (rho -> tau) values per layer
+            if hasattr(model, "beamformer") and hasattr(model.beamformer, "lista_layers"):
+                for k, layer in enumerate(model.beamformer.lista_layers):
+                    if hasattr(layer, "rho"):
+                        rho_val = layer.rho.item()
+                        tau_val = layer.TAU_MIN + (layer.TAU_MAX - layer.TAU_MIN) * torch.sigmoid(layer.rho).item()
+                        writer.add_scalar(f"lista/rho_layer_{k}", rho_val, epoch)
+                        writer.add_scalar(f"lista/tau_layer_{k}", tau_val, epoch)
 
         # --- Validation ---
         model.eval()
@@ -444,6 +507,12 @@ if __name__ == "__main__":
         "--num-workers", type=int, default=DEFAULT_CONFIG["num_workers"],
         dest="num_workers", help="DataLoader worker processes"
     )
+    parser.add_argument(
+        "--model-type", type=str, default="cvnn",
+        choices=["cvnn", "magnitude"],
+        dest="model_type",
+        help="Model type: 'cvnn' (LISTA+complex) or 'magnitude' (FFT+magnitude baseline)"
+    )
 
     args = parser.parse_args()
 
@@ -463,6 +532,7 @@ if __name__ == "__main__":
         "grad_clip": args.grad_clip,
         "checkpoint_every": args.checkpoint_every,
         "num_workers": args.num_workers,
+        "model_type": args.model_type,
     }
 
     train(config)

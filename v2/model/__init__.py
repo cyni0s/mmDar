@@ -71,6 +71,24 @@ class RadarPointCloudModel(nn.Module):
 
         return pts, conf
 
+    def forward_with_intermediates(
+        self, y: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """Forward pass returning intermediate LISTA output for measurement consistency.
+
+        Args:
+            y: Raw radar input, shape (B, 8, 512) complex64
+
+        Returns:
+            pts:          (B, 8192, 3) float32 predicted point cloud
+            conf:         (B, 8192, 1) float32 per-point confidence logits
+            angular_spec: (B, N_az, 512) complex64 LISTA beamformer output
+        """
+        angular_spec = self.beamformer(y)
+        features = self.bridge(angular_spec)
+        pts, conf = self.decoder(features)
+        return pts, conf, angular_spec
+
 
 class MagnitudeBaseline(nn.Module):
     """Single-frame magnitude-only baseline for fair comparison.

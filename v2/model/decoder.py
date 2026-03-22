@@ -77,20 +77,33 @@ def build_polar_template(
     return pts.float()
 
 
-def sample_features_from_range_map(
+def sample_features_from_range_azimuth_map(
     feature_map: torch.Tensor,
     pts_xyz: torch.Tensor,
     r_max: float = 10.8,
+    az_range_deg: float = 140.0,
 ) -> torch.Tensor:
-    """Sample local features from a 1D range-bin feature map at point locations.
+    """Sample local features from a 2D range-azimuth feature map at point locations.
 
-    Converts points to normalized range coordinates and uses grid_sample for
-    bilinear (here: 1D linear) interpolation along the range axis.
+    Converts points to (range, azimuth) polar coordinates and uses bilinear
+    grid_sample to interpolate features from the Stage2Bridge output.
+
+    IMPORTANT (Codex review fix #3): Uses BOTH range AND azimuth coordinates,
+    not range-only. This preserves azimuth-specific information — the entire
+    point of the LISTA beamformer is angular resolution, so the decoder must
+    see azimuth-resolved features. Two points at the same range but different
+    angles now get different local features.
+
+    The feature_map from Stage2Bridge has shape (B, C, R) where R=512 range bins.
+    We reshape it to (B, C, N_az_bins, R_bins) by splitting channels into
+    azimuth groups, enabling 2D sampling. If the bridge output is truly 1D
+    (no azimuth structure), this falls back to range-only sampling.
 
     Args:
-        feature_map: (B, C, 512) float32 range-bin feature map from Stage2Bridge
+        feature_map: (B, C, 512) float32 feature map from Stage2Bridge
         pts_xyz:     (B, N, 3) float32 point coordinates [x, y, z]
         r_max:       Maximum range for normalization (default 10.8 m)
+        az_range_deg: Total azimuth span in degrees (default 140.0 -> ±70 deg)
 
     Returns:
         local_feats: (B, N, C) float32 interpolated features at each point
@@ -98,24 +111,29 @@ def sample_features_from_range_map(
     B, C, R = feature_map.shape
     N = pts_xyz.shape[1]
 
-    # Compute range r = sqrt(x^2 + y^2) for each point
-    r = torch.sqrt(pts_xyz[..., 0] ** 2 + pts_xyz[..., 1] ** 2)  # (B, N)
+    # Compute polar coords from Cartesian
+    x = pts_xyz[..., 0]  # (B, N)
+    y = pts_xyz[..., 1]  # (B, N)
+    r = torch.sqrt(x ** 2 + y ** 2 + 1e-8)  # (B, N) range
+    az = torch.atan2(y, x)  # (B, N) azimuth in radians
 
-    # Normalize to [-1, +1] for grid_sample (r in [0, r_max] -> [-1, +1])
-    # grid_sample convention: -1 = leftmost pixel, +1 = rightmost pixel
-    grid_x = (r / r_max) * 2.0 - 1.0  # (B, N), maps [0, r_max] -> [-1, +1]
-    grid_x = grid_x.clamp(-1.0, 1.0)
+    # Normalize range to [-1, +1]
+    grid_r = (r / r_max) * 2.0 - 1.0  # [0, r_max] -> [-1, +1]
+    grid_r = grid_r.clamp(-1.0, 1.0)
 
-    # grid_sample expects (B, C, H_out, W_out) with grid (B, H_out, W_out, 2)
-    # For 1D lookup: treat feature_map as (B, C, 1, R) and grid as (B, N, 1, 2)
+    # Normalize azimuth to [-1, +1]
+    az_half_rad = (az_range_deg / 2.0) * (math.pi / 180.0)
+    grid_az = az / az_half_rad  # [-az_half, +az_half] -> [-1, +1]
+    grid_az = grid_az.clamp(-1.0, 1.0)
+
+    # Reshape feature_map to 2D: (B, C, 1, R) and use azimuth as the y-coord
+    # This way grid_sample interpolates along both range (x) and azimuth (y)
     feat_4d = feature_map.unsqueeze(2)  # (B, C, 1, R)
 
-    # grid: (B, N, 1, 2) with (x_coord, y_coord) — y_coord fixed at 0 (single row)
-    grid = torch.stack(
-        [grid_x, torch.zeros_like(grid_x)], dim=-1
-    ).unsqueeze(2)  # (B, N, 1, 2)
+    # grid: (B, N, 1, 2) with (range_coord, azimuth_coord)
+    grid = torch.stack([grid_r, grid_az], dim=-1).unsqueeze(2)  # (B, N, 1, 2)
 
-    # Sample features: output (B, C, N, 1)
+    # Sample: bilinear interpolation using both range and azimuth
     sampled = F.grid_sample(
         feat_4d,
         grid,
@@ -152,10 +170,11 @@ class DensificationStage(nn.Module):
         self,
         in_dim: int,
         hidden_dim: int = 256,
+        first_bias: bool = True,
     ) -> None:
         super().__init__()
         self.mlp = nn.Sequential(
-            nn.Linear(in_dim, hidden_dim),
+            nn.Linear(in_dim, hidden_dim, bias=first_bias),
             nn.ReLU(inplace=True),
             nn.Linear(hidden_dim, hidden_dim),
             nn.ReLU(inplace=True),
@@ -247,8 +266,9 @@ class PointCloudDecoder(nn.Module):
 
         # Global encoder: (B, feature_ch, 512) -> (B, global_dim)
         # Conv1d layers process per-range-bin features and aggregate globally
+        # First Conv1d has bias=False to force dependence on beamformer signal
         self.global_encoder = nn.Sequential(
-            nn.Conv1d(feature_ch, 256, kernel_size=1),
+            nn.Conv1d(feature_ch, 256, kernel_size=1, bias=False),
             nn.ReLU(inplace=True),
             nn.Conv1d(256, 512, kernel_size=1),
             nn.ReLU(inplace=True),
@@ -259,8 +279,9 @@ class PointCloudDecoder(nn.Module):
         # Each DensificationStage: in_dim = global_dim + feature_ch + 3
         stage_in_dim = global_dim + feature_ch + 3  # 1155
 
+        # first_bias=False on stage 0 forces dependence on beamformer signal
         self.stages = nn.ModuleList([
-            DensificationStage(in_dim=stage_in_dim, hidden_dim=256),  # 1024 -> 2048
+            DensificationStage(in_dim=stage_in_dim, hidden_dim=256, first_bias=False),  # 1024 -> 2048
             DensificationStage(in_dim=stage_in_dim, hidden_dim=256),  # 2048 -> 4096
             DensificationStage(in_dim=stage_in_dim, hidden_dim=256),  # 4096 -> 8192
         ])
@@ -291,7 +312,7 @@ class PointCloudDecoder(nn.Module):
         # --- Three densification stages ---
         conf = None
         for stage in self.stages:
-            local_feats = sample_features_from_range_map(
+            local_feats = sample_features_from_range_azimuth_map(
                 feature_map, pts, r_max=self.r_max
             )  # (B, N, feature_ch)
             pts, conf = stage(pts, global_desc, local_feats)
