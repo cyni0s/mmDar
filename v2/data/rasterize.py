@@ -57,3 +57,36 @@ def rasterize_to_polar(
         occ = np.clip(occ / max(occ.max(), 1e-8), 0.0, 1.0)
 
     return occ
+
+
+def rasterize_trajectory(lidar_pt_path, output_path, N_az=256, N_r=512, r_max=10.8, sigma=0.5):
+    """Rasterize all frames in a lidar .pt to occupancy.
+    Returns number of frames processed."""
+    import torch
+    lidar = torch.load(lidar_pt_path, weights_only=True).numpy()
+    N = lidar.shape[0]
+    occ_list = []
+    for i in range(N):
+        occ_list.append(rasterize_to_polar(lidar[i], N_az, N_r, r_max, sigma))
+    occ = np.stack(occ_list)
+    torch.save(torch.from_numpy(occ), output_path)
+    return N
+
+
+if __name__ == "__main__":
+    import argparse, glob, os
+    import torch
+    parser = argparse.ArgumentParser(description="Rasterize lidar .pt to occupancy")
+    parser.add_argument("--processed-dir", default="v2/data/processed")
+    parser.add_argument("--sigma", type=float, default=0.5)
+    args = parser.parse_args()
+    lidar_files = sorted(glob.glob(os.path.join(args.processed_dir, "lidar_*.pt")))
+    print(f"Found {len(lidar_files)} lidar .pt files")
+    for lf in lidar_files:
+        traj_id = os.path.basename(lf).replace("lidar_", "").replace(".pt", "")
+        out_path = os.path.join(args.processed_dir, f"occ_{traj_id}.pt")
+        if os.path.exists(out_path):
+            print(f"  occ_{traj_id}.pt exists, skipping")
+            continue
+        n = rasterize_trajectory(lf, out_path, sigma=args.sigma)
+        print(f"  occ_{traj_id}.pt: {n} frames rasterized")
