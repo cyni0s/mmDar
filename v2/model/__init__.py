@@ -24,6 +24,7 @@ import torch.nn as nn
 from v2.model.cvnn import safe_modulus
 from v2.model.lista import FFTBeamformer, LISTABeamformer, Stage2Bridge
 from v2.model.decoder import PointCloudDecoder
+from v2.model.occupancy import OccupancyModel, Channelizer, DilatedResHead
 
 
 class RadarPointCloudModel(nn.Module):
@@ -144,6 +145,68 @@ class MagnitudeBaseline(nn.Module):
         # Stage 3: Same decoder as RadarPointCloudModel
         pts, conf = self.decoder(features)
 
+        return pts, conf
+
+
+class MagnitudePhaseFusion(nn.Module):
+    """Magnitude + phase channels baseline for phase ablation.
+
+    Same as MagnitudeBaseline but feeds 3 real channels per angular bin:
+        - magnitude: |FFT|
+        - sin(angle(FFT))
+        - cos(angle(FFT))
+
+    This tests whether phase helps in the simplest possible way — no CVNN,
+    no LISTA, no complex arithmetic. Just phase as extra real features.
+
+    Input channels: N_az * 3 (magnitude + sin_phase + cos_phase)
+    Bridge reduces to bridge_out_ch before the same decoder.
+
+    Args:
+        N_az:         Number of angular bins (default 256)
+        bridge_out_ch: Number of output channels from bridge (default 128)
+    """
+
+    def __init__(self, N_az: int = 256, bridge_out_ch: int = 128) -> None:
+        super().__init__()
+        self.beamformer = FFTBeamformer(N_az=N_az)
+        # 3x channels: mag + sin(phase) + cos(phase)
+        # Use two Conv1d layers to reduce 3*N_az -> bridge_out_ch
+        self.bridge = nn.Sequential(
+            nn.Conv1d(N_az * 3, N_az, kernel_size=1),
+            nn.ReLU(inplace=True),
+            nn.Conv1d(N_az, bridge_out_ch, kernel_size=3, padding=1),
+            nn.GroupNorm(16, bridge_out_ch),
+            nn.ReLU(inplace=True),
+        )
+        self.decoder = PointCloudDecoder(feature_ch=bridge_out_ch)
+
+    def forward(
+        self, y: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Forward: FFT -> magnitude + phase channels -> decoder.
+
+        Args:
+            y: Raw radar input, shape (B, 8, 512) complex64
+
+        Returns:
+            pts:  (B, 8192, 3) float32
+            conf: (B, 8192, 1) float32
+        """
+        spec = self.beamformer(y)                  # (B, N_az, 512) complex64
+        mag = safe_modulus(spec)                   # (B, N_az, 512) float32
+        phase = torch.angle(spec)                  # (B, N_az, 512) float32
+        sin_ph = torch.sin(phase)                  # (B, N_az, 512)
+        cos_ph = torch.cos(phase)                  # (B, N_az, 512)
+
+        # Gate phase by magnitude — low-SNR bins get zero phase contribution
+        gate = (mag > mag.mean(dim=1, keepdim=True) * 0.1).float()
+        sin_ph = sin_ph * gate
+        cos_ph = cos_ph * gate
+
+        fused = torch.cat([mag, sin_ph, cos_ph], dim=1)  # (B, 3*N_az, 512)
+        features = self.bridge(fused)              # (B, bridge_out_ch, 512)
+        pts, conf = self.decoder(features)
         return pts, conf
 
 
