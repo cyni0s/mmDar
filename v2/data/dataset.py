@@ -270,9 +270,10 @@ class OccupancyTrajectoryDataset(Dataset):
         ).to(torch.complex64)
         r = r + noise
 
-        # 3. Circular range shift along the range (last) dimension
-        shift = random.randint(-2, 2)
-        r = torch.roll(r, shift, dims=-1)
+        # 3. Circular range shift REMOVED for occupancy training.
+        # Range shift moves radar features along the range axis but does NOT
+        # shift the occupancy label, creating a train-time input/target mismatch.
+        # Phase rotation and additive noise are label-preserving; range shift is not.
 
         return r
 
@@ -394,19 +395,18 @@ def build_occupancy_dataloaders(
     for split_name, (traj_ids, augment, shuffle) in split_configs.items():
         datasets = []
         for tid in traj_ids:
-            radar_path = os.path.join(processed_dir, f"radar_{tid}.pt")
-            occ_path = os.path.join(processed_dir, f"occ_{tid}.pt")
-            if not os.path.isfile(radar_path):
+            # Check ALL 4 required files before constructing the dataset
+            required = {
+                "radar": os.path.join(processed_dir, f"radar_{tid}.pt"),
+                "lidar": os.path.join(processed_dir, f"lidar_{tid}.pt"),
+                "norm": os.path.join(processed_dir, f"norm_{tid}.pt"),
+                "occ": os.path.join(processed_dir, f"occ_{tid}.pt"),
+            }
+            missing = [k for k, v in required.items() if not os.path.isfile(v)]
+            if missing:
                 print(
-                    f"[build_occupancy_dataloaders] WARNING: {radar_path} not found, "
-                    f"skipping trajectory {tid} from {split_name} split."
-                )
-                continue
-            if not os.path.isfile(occ_path):
-                print(
-                    f"[build_occupancy_dataloaders] WARNING: {occ_path} not found, "
-                    f"skipping trajectory {tid} from {split_name} split. "
-                    f"Run preprocess with --occupancy to generate occ files."
+                    f"[build_occupancy_dataloaders] WARNING: trajectory {tid} "
+                    f"missing {missing}, skipping from {split_name} split."
                 )
                 continue
             datasets.append(
@@ -414,14 +414,13 @@ def build_occupancy_dataloaders(
             )
 
         if not datasets:
-            print(
-                f"[build_occupancy_dataloaders] WARNING: No .pt files found for "
-                f"'{split_name}' split. DataLoader will be empty."
+            raise RuntimeError(
+                f"[build_occupancy_dataloaders] No valid trajectories found for "
+                f"'{split_name}' split in {processed_dir}. "
+                f"Run 'python -m v2.data.rasterize' to generate occ files."
             )
-            concat = ConcatDataset([])
-        else:
-            concat = ConcatDataset(datasets)
 
+        concat = ConcatDataset(datasets)
         loaders[split_name] = DataLoader(
             concat,
             batch_size=batch_size,

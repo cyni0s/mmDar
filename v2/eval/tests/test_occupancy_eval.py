@@ -43,3 +43,30 @@ def test_evaluate_occupancy_epoch_smoke():
     metrics = evaluate_occupancy_epoch(model, loader, torch.device("cpu"))
     assert "chamfer" in metrics
     assert "mod_hausdorff" in metrics
+    # Model predicts all-zero logits -> sigmoid(0)=0.5 -> all cells "occupied"
+    # at threshold=0.5 (default), so predictions are not empty. Metrics should be finite.
+    assert metrics["chamfer"] < 20.0, "Should not be penalty distance"
+
+
+def test_empty_prediction_gets_penalty():
+    """Empty predictions should receive MAX_PENALTY_DIST, not be skipped."""
+    from v2.eval.occupancy_eval import evaluate_occupancy_epoch, MAX_PENALTY_DIST
+
+    class NothingModel(torch.nn.Module):
+        def forward(self, x):
+            B = x.shape[0]
+            # Very negative logits -> sigmoid ~ 0 -> no cells above threshold
+            return torch.full((B, 1, 256, 512), -100.0)
+
+    model = NothingModel()
+    radar = torch.randn(1, 8, 512, dtype=torch.complex64)
+    lidar = torch.zeros(1, 8192, 3)
+    lidar[0, 0] = torch.tensor([5.0, 0.0, 0.0])  # valid GT point
+    occ = torch.zeros(1, 256, 512)
+    norm = torch.ones(1)
+    loader = [(radar, lidar, occ, norm)]
+
+    metrics = evaluate_occupancy_epoch(model, loader, torch.device("cpu"))
+    assert metrics["chamfer"] == MAX_PENALTY_DIST, (
+        f"Empty prediction should get penalty {MAX_PENALTY_DIST}, got {metrics['chamfer']}"
+    )
