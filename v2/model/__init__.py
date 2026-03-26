@@ -26,6 +26,7 @@ from v2.model.lista import FFTBeamformer, LISTABeamformer, Stage2Bridge
 from v2.model.decoder import PointCloudDecoder
 from v2.model.decoder_2d import PointCloudDecoder2D
 from v2.model.occupancy import OccupancyModel, Channelizer, DilatedResHead
+from v2.model.temporal import TemporalMagPhaseFusion, TemporalCrossAttention
 
 
 class RadarPointCloudModel(nn.Module):
