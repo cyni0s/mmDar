@@ -9,11 +9,12 @@ Each improvement is isolated and ablated so the contribution of each change is m
 
 ## Key Results
 
-| Experiment | Chamfer (m) | Mod-Hausdorff (m) | IoU | F1 | Notes |
-|------------|-------------|-------------------|-----|-----|-------|
-| Paper (reported) | 0.36 | 0.24 | — | — | RadarHD ICRA 2023 |
-| **5090-optimized** | **0.295** | **0.189** | 0.054 | 0.102 | batch=12, lr=7e-5, fp32, epoch 10 (22 min) |
-| baseline_pretrained | 0.363 | 0.247 | 0.026 | 0.051 | Authors' pretrained 120.pt_gen |
+| Experiment | Chamfer (m) | Mod-Hausdorff (m) | Frames | Notes |
+|------------|-------------|-------------------|--------|-------|
+| Paper (reported) | 0.36 | 0.24 | 41 | RadarHD ICRA 2023 |
+| **5090-optimized** | **0.295** | **0.189** | **41** | **batch=12, lr=7e-5, fp32, epoch 10 (22 min)** |
+| baseline_pretrained | 0.363 | 0.247 | 41 | Authors' pretrained 120.pt_gen |
+| v2 Mag+Phase (raw IQ) | 0.309 | 0.423 | **1** | Single-frame, no PNG preprocessing, 2.08M params, 1.3ms |
 
 *All values are median over 18,575 test samples using legacy-cartesian coordinate conversion (paper-comparable pipeline).*
 
@@ -226,6 +227,15 @@ The `legacy_cartesian` mode reproduces the paper's eval pipeline within 3% (Cham
 - **bf16 mixed precision trades ~4% quality for ~30% speed.** At batch=12, lr=7e-5: fp32 achieves Chamfer 0.295m vs bf16's 0.308m. For fast iteration (sweeps, prototyping) bf16 is fine. For final results, use fp32.
 - **The original authors used no validation set or metric-based selection.** They trained for 130 epochs, saved every 10, and shipped epoch 120. Our approach: train, save every 10 epochs, sweep checkpoints by Chamfer distance.
 - **Best 5090 config: batch=12, lr=7e-5, fp32, ~10 epochs (~22 min).** Chamfer 0.295m — 18% better than the paper. For fast sweeps, bf16 at the same config is ~30% faster with only ~4% quality loss.
+
+#### v2 Raw-IQ Pipeline Lessons
+
+- **Single-frame raw IQ achieves near-baseline Chamfer.** The v2 Mag+Phase decoder (FFT + sin/cos phase channels + point decoder) achieves 0.309m Chamfer from 1 frame vs the 41-frame baseline's 0.295m. Raw IQ is viable for streaming without PNG preprocessing.
+- **Phase helps average geometry but hurts worst-case structure.** Adding sin/cos phase channels improved Chamfer by 2.5% (0.317→0.309) but worsened mod-Hausdorff by 6% (0.399→0.423). Phase sharpens localization for detected targets but provides no coverage benefit for missed returns.
+- **The mod-Hausdorff gap is temporal, not architectural.** We verified that the point decoder has an angular topology collapse (grid_sample with height=1), but fixing it made both Chamfer and mod-H WORSE. The mod-H gap (0.423 vs 0.189) is caused by single-frame radar missing weak/intermittent returns that 41-frame temporal stacking recovers. Architecture changes cannot fix a data-availability problem.
+- **"Bugs" can be features.** The Conv1d(256→128) bridge collapses 256 angular bins into 128 abstract channel features — destroying explicit angular topology but providing rich per-range-position features. When we "fixed" this with Conv2d(3→128) preserving 2D layout, the model got worse because each position only sees 3 local features instead of 256 global angular bins. The right inductive bias depends on the downstream consumer (MLP vs conv).
+- **Capacity matters for occupancy prediction.** A 75K-param dilated conv head on polar occupancy (256×512, 0.8% positive) produced Chamfer 0.750m — the model couldn't learn from the sparse labels. The baseline U-Net uses 17.5M params. Dense occupancy prediction from sparse labels requires multi-scale capacity, not a flat conv head.
+- **Change one variable at a time.** The occupancy experiment changed the decoder (point→occupancy), loss (Chamfer→focal BCE+Dice), output format, AND reduced params by 25×. All at once. The result was uninterpretable — did the idea fail or just the specific implementation? The 2D angular fix (one variable changed) gave a clear answer.
 
 ### Hyperparameter Sweep Summary (RTX 5090)
 

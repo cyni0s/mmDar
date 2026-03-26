@@ -153,6 +153,66 @@ Update the Comparison Table above with the `median` values from the JSON output.
 
 **Conclusion:** This task is fundamentally about spatial precision in the decoder, not temporal dynamics. The 41-channel stacking is the correct temporal fusion strategy for fixed-length sequences where spatial accuracy dominates.
 
+## Phase 3: v2 Single-Frame Raw-IQ Pipeline
+
+### Motivation
+
+The baseline operates on 8-bit magnitude PNGs after CFAR detection — lossy preprocessing unsuitable for real-time streaming. The v2 pipeline operates directly on raw complex IQ data (8 virtual antennas × 512 range bins, complex64) to preserve phase information and enable streaming inference.
+
+### v2 Model Variants Tested
+
+| Model | Chamfer (m) | Mod-H (m) | Params | Best Epoch | Train Time | Architecture |
+|-------|-------------|-----------|--------|-----------|-----------|--------------|
+| v2 Magnitude | 0.317 | 0.399 | 1.88M | ~10 | — | FFT + |·| + point decoder |
+| **v2 Mag+Phase** | **0.309** | **0.423** | **2.08M** | **~10** | **—** | **FFT + mag/sin/cos + point decoder** |
+| v2 FFT Occupancy | 0.750 | 0.668 | 75K | 9 | 144 min | FFT + [Re,Im,logpow] + dilated conv → polar occ |
+| v2 Mag+Phase 2D | 0.347 | 0.484 | 1.78M | 32 | 430 min | FFT + mag/sin/cos + 2D Conv2d bridge + point decoder |
+
+*v2 models use direct point-cloud eval (chamfer_distance_np, mod_hausdorff_np) on XY-only projections matching legacy_cartesian. Not tested on full test set via PNG pipeline — numbers are validation-set estimates and may differ slightly from test-set numbers.*
+
+### Key Finding: Angular Topology Collapse (Verified Bug)
+
+The v2 point cloud decoder's `sample_features_from_range_azimuth_map()` uses `unsqueeze(2)` to create a feature map with height=1, making azimuth interpolation a no-op via grid_sample. **Empirically verified**: two points at the same range but different azimuths (az=-0.8 vs az=+0.8) get IDENTICAL features (max abs diff = 0.0).
+
+Despite this bug, the point decoder achieves 0.309m Chamfer because:
+- Chamfer distance is dominated by range precision, not angular precision
+- The Conv1d(256→128) bridge mixes all 256 angular bins into 128 features per range position — rich per-point features that compensate for the grid_sample bug
+- The mod-Hausdorff penalty (0.423 vs baseline 0.189) reflects the angular coverage gaps
+
+### Experiment: FFT Occupancy Decoder (Negative Result)
+
+**Hypothesis:** Replacing the point decoder with a polar occupancy output (256×512 logits) would preserve angular topology and fix the mod-H gap.
+
+**Architecture:** FFTBeamformer → Channelizer [Re, Im, log_power] → InstanceNorm2d → 4× DilatedResBlock(dilations=[1,2,4,1]) → Conv2d(1) → polar occupancy logits. 75,207 params.
+
+**Result:** Chamfer 0.750m, mod-H 0.668m — **2.4× worse** than the point decoder.
+
+**Why it failed:**
+1. Model severely under-parameterized (75K vs baseline's 17.5M). Training loss barely moved (0.96→0.95).
+2. FFT beamformer produces a smooth/blurred angular spectrum (8 antennas zero-padded to 256 bins). The conv head cannot resolve angular detail that isn't in the input.
+3. Labels are extremely sparse (~0.8% positive pixels). Focal BCE + Dice was insufficient — model predicted near-all-zeros.
+
+### Experiment: 2D Angular Topology Fix (Negative Result)
+
+**Hypothesis:** Switching the bridge from Conv1d(256→128) to Conv2d(3→128) on the 2D (azimuth × range) feature map would preserve angular topology for grid_sample and fix mod-H.
+
+**Architecture:** FFTBeamformer → [mag, sin_phase, cos_phase] as (B, 3, 256, 512) → Conv2d(3→128) bridge → PointCloudDecoder2D with 2D grid_sample using sin_theta coordinates. 1.78M params.
+
+**Result:** Chamfer 0.347m, mod-H 0.484m — **worse on BOTH metrics** than the broken 1D decoder (0.309/0.423).
+
+**Why it failed:**
+1. The Conv2d(3→128) bridge has 28× fewer parameters than the Conv1d(256→128) bridge (3.5K vs 98K per layer). Each spatial position sees only 3 features (mag/sin/cos) vs 256 angular-bin features mixed into 128 dims.
+2. The 1D bridge's "bug" is actually a useful inductive bias: it provides rich global angular context per range position. The 2D bridge trades this for local angular locality, which is less useful for the MLP-based DensificationStage.
+3. The model converged 3× slower (best at epoch 32 vs epoch 10), suggesting the 2D representation is harder to optimize.
+
+### Conclusion
+
+**The mod-Hausdorff gap (0.423 vs 0.189) is primarily a temporal coverage problem, not an angular topology problem.** Fixing angular topology made both metrics worse. The 1D bridge's global angular mixing is a feature, not a bug — for this point decoder architecture.
+
+Single-frame radar at 0.309m Chamfer is close to the 41-frame baseline (0.295m). The remaining gap is weak/intermittent returns that only appear in some frames — no single-frame architecture can recover these.
+
+**Next step:** Temporal scaling study (1/3/5/8/41 frame Pareto curve) using the working 1D Mag+Phase decoder.
+
 ## Future Experiments
 
 Ideas to test separately from the main architectural ablation. Each should be isolated to avoid confounding.
