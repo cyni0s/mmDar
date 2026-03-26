@@ -34,7 +34,10 @@ import torch
 import torch.nn as nn
 from torch.utils.tensorboard import SummaryWriter
 
-from v2.model import RadarPointCloudModel, MagnitudeBaseline, set_stage1_frozen
+from v2.model import (
+    RadarPointCloudModel, MagnitudeBaseline, MagnitudePhaseFusion,
+    MagnitudeBaseline2D, MagnitudePhaseFusion2D, set_stage1_frozen,
+)
 from v2.train.loss import composite_loss
 from v2.eval.eval_adapter import evaluate_epoch
 from v2.data.dataset import build_dataloaders
@@ -122,6 +125,15 @@ def train(config: dict | None = None) -> dict:
     if model_type == "magnitude":
         model = MagnitudeBaseline(N_az=256, bridge_out_ch=128)
         print("[train] Using MagnitudeBaseline (no phase, no learned beamforming)")
+    elif model_type == "mag_phase":
+        model = MagnitudePhaseFusion(N_az=256, bridge_out_ch=128)
+        print("[train] Using MagnitudePhaseFusion (magnitude + sin/cos phase channels)")
+    elif model_type == "magnitude_2d":
+        model = MagnitudeBaseline2D(N_az=256, bridge_out_ch=128)
+        print("[train] Using MagnitudeBaseline2D (2D angular topology preserved)")
+    elif model_type == "mag_phase_2d":
+        model = MagnitudePhaseFusion2D(N_az=256, bridge_out_ch=128)
+        print("[train] Using MagnitudePhaseFusion2D (2D angular + phase)")
     else:
         model = RadarPointCloudModel(K=5, N_az=256, bridge_out_ch=128)
         print("[train] Using RadarPointCloudModel (CVNN + LISTA)")
@@ -509,9 +521,10 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--model-type", type=str, default="cvnn",
-        choices=["cvnn", "magnitude"],
+        choices=["cvnn", "magnitude", "mag_phase", "magnitude_2d", "mag_phase_2d"],
         dest="model_type",
-        help="Model type: 'cvnn' (LISTA+complex) or 'magnitude' (FFT+magnitude baseline)"
+        help="Model type: 'cvnn' (LISTA+complex), 'magnitude' (FFT+mag 1D), "
+             "'magnitude_2d' (FFT+mag 2D angular), 'mag_phase_2d' (FFT+mag+phase 2D)"
     )
 
     args = parser.parse_args()

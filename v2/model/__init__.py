@@ -24,6 +24,7 @@ import torch.nn as nn
 from v2.model.cvnn import safe_modulus
 from v2.model.lista import FFTBeamformer, LISTABeamformer, Stage2Bridge
 from v2.model.decoder import PointCloudDecoder
+from v2.model.decoder_2d import PointCloudDecoder2D
 from v2.model.occupancy import OccupancyModel, Channelizer, DilatedResHead
 
 
@@ -206,6 +207,113 @@ class MagnitudePhaseFusion(nn.Module):
 
         fused = torch.cat([mag, sin_ph, cos_ph], dim=1)  # (B, 3*N_az, 512)
         features = self.bridge(fused)              # (B, bridge_out_ch, 512)
+        pts, conf = self.decoder(features)
+        return pts, conf
+
+
+class MagnitudeBaseline2D(nn.Module):
+    """Single-frame magnitude baseline with 2D angular topology preserved.
+
+    Fixes the angular collapse bug: bridge uses Conv2d to maintain (azimuth x range)
+    spatial layout. The decoder can now distinguish features at different azimuths.
+
+    Pipeline:
+        1. FFTBeamformer: (B, 8, 512) complex64 -> (B, 256, 512) complex64
+        2. safe_modulus -> (B, 256, 512) float32
+        3. Conv2d bridge: (B, 1, 256, 512) -> (B, bridge_out_ch, 256, 512)
+        4. PointCloudDecoder2D: (B, bridge_out_ch, 256, 512) -> pts + conf
+
+    Args:
+        N_az:          Number of angular bins (default 256)
+        bridge_out_ch: Number of output channels from bridge (default 128)
+    """
+
+    def __init__(self, N_az: int = 256, bridge_out_ch: int = 128) -> None:
+        super().__init__()
+        self.beamformer = FFTBeamformer(N_az=N_az)
+        # 2D bridge: (B, 1, 256, 512) -> (B, bridge_out_ch, 256, 512)
+        self.bridge = nn.Sequential(
+            nn.Conv2d(1, bridge_out_ch, kernel_size=3, padding=1),
+            nn.GroupNorm(16, bridge_out_ch),
+            nn.ReLU(inplace=True),
+        )
+        self.decoder = PointCloudDecoder2D(feature_ch=bridge_out_ch)
+
+    def forward(
+        self, y: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """End-to-end forward pass (magnitude-only, 2D angular topology).
+
+        Args:
+            y: Raw radar input, shape (B, 8, 512) complex64
+
+        Returns:
+            pts:  (B, 8192, 3) float32 predicted point cloud
+            conf: (B, 8192, 1) float32 per-point confidence logits (pre-sigmoid)
+        """
+        spec = self.beamformer(y)              # (B, 256, 512) complex64
+        mag = safe_modulus(spec)               # (B, 256, 512) float32, non-negative
+        mag_2d = mag.unsqueeze(1)              # (B, 1, 256, 512) — explicit 2D
+        features = self.bridge(mag_2d)         # (B, bridge_out_ch, 256, 512) — 2D preserved!
+        pts, conf = self.decoder(features)
+        return pts, conf
+
+
+class MagnitudePhaseFusion2D(nn.Module):
+    """Magnitude + phase with 2D angular topology preserved.
+
+    Same as MagnitudeBaseline2D but feeds 3 real channels per angular position:
+        - magnitude: |FFT|
+        - sin(angle(FFT)), gated by magnitude
+        - cos(angle(FFT)), gated by magnitude
+
+    Pipeline:
+        1. FFTBeamformer: (B, 8, 512) complex64 -> (B, 256, 512) complex64
+        2. Extract mag, sin(phase), cos(phase) -> stack -> (B, 3, 256, 512)
+        3. Conv2d bridge: (B, 3, 256, 512) -> (B, bridge_out_ch, 256, 512)
+        4. PointCloudDecoder2D: (B, bridge_out_ch, 256, 512) -> pts + conf
+
+    Args:
+        N_az:          Number of angular bins (default 256)
+        bridge_out_ch: Number of output channels from bridge (default 128)
+    """
+
+    def __init__(self, N_az: int = 256, bridge_out_ch: int = 128) -> None:
+        super().__init__()
+        self.beamformer = FFTBeamformer(N_az=N_az)
+        # 3 channels: mag + sin_phase + cos_phase, all in 2D
+        self.bridge = nn.Sequential(
+            nn.Conv2d(3, bridge_out_ch, kernel_size=3, padding=1),
+            nn.GroupNorm(16, bridge_out_ch),
+            nn.ReLU(inplace=True),
+        )
+        self.decoder = PointCloudDecoder2D(feature_ch=bridge_out_ch)
+
+    def forward(
+        self, y: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Forward: FFT -> magnitude + phase channels (2D) -> decoder.
+
+        Args:
+            y: Raw radar input, shape (B, 8, 512) complex64
+
+        Returns:
+            pts:  (B, 8192, 3) float32
+            conf: (B, 8192, 1) float32
+        """
+        spec = self.beamformer(y)                  # (B, 256, 512) complex64
+        mag = safe_modulus(spec)                    # (B, 256, 512) float32
+        phase = torch.angle(spec)                  # (B, 256, 512) float32
+        sin_ph = torch.sin(phase)                  # (B, 256, 512)
+        cos_ph = torch.cos(phase)                  # (B, 256, 512)
+
+        # Gate phase by magnitude — low-SNR bins get zero phase contribution
+        gate = (mag > mag.mean(dim=1, keepdim=True) * 0.1).float()
+        sin_ph = sin_ph * gate
+        cos_ph = cos_ph * gate
+
+        fused = torch.stack([mag, sin_ph, cos_ph], dim=1)  # (B, 3, 256, 512)
+        features = self.bridge(fused)              # (B, bridge_out_ch, 256, 512)
         pts, conf = self.decoder(features)
         return pts, conf
 
