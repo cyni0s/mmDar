@@ -26,14 +26,32 @@ def test_temporal_multi_frame_shape():
     assert out.shape == (2, 128, 512)
 
 
-def test_temporal_different_output():
-    """Multi-frame should differ from single-frame."""
+def test_temporal_zero_init_then_differs_after_step():
+    """At init, delta ≈ 0 (preserves pretrained single-frame behavior).
+    After one gradient step, multi-frame output should differ from single-frame.
+    """
     from v2.model.temporal import TemporalCrossAttention
     module = TemporalCrossAttention(d_model=128, n_heads=4)
     x = torch.randn(2, 5, 128, 512)
-    out_multi = module(x)
-    out_single = module(x[:, -1:, :, :])
-    assert not torch.allclose(out_multi, out_single, atol=1e-3)
+
+    # Before training: zero-init FFN → delta ≈ 0 → multi ≈ single
+    out_multi_pre = module(x).detach()
+    out_single_pre = module(x[:, -1:, :, :]).detach()
+    assert torch.allclose(out_multi_pre, out_single_pre, atol=1e-4), \
+        "At init, multi and single should match (zero-init FFN)"
+
+    # One gradient step
+    optimizer = torch.optim.SGD(module.parameters(), lr=0.01)
+    loss = module(x).sum()
+    loss.backward()
+    optimizer.step()
+
+    # After training: outputs should now differ
+    with torch.no_grad():
+        out_multi_post = module(x)
+        out_single_post = module(x[:, -1:, :, :])
+    assert not torch.allclose(out_multi_post, out_single_post, atol=1e-3), \
+        "After training, multi-frame should differ from single-frame"
 
 
 def test_temporal_param_count():

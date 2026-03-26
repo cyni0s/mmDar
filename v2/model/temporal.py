@@ -15,6 +15,14 @@ Key design decisions:
     3. Learnable relative lag encoding added to KV
     4. 1 attention layer, d_model=128, n_heads=4, ff_dim=256
     5. Per-range-bin: (B*R, 1, C) query vs (B*R, N-1, C) key-values
+
+Physics-informed design:
+    6. Range-context conv on history KV: depthwise Conv1d(k=33, pad=16) expands
+       each history range bin's receptive field to ±16 bins (~±0.34m). This
+       compensates for radial target motion between frames (at 1.5 m/s indoor
+       speed, ~15 bins drift across a 5-frame window at 20 FPS).
+    7. FFN output initialized to zero so delta ≈ 0 at init, preserving
+       single-frame behavior when loading pretrained weights.
 """
 
 import torch
@@ -48,6 +56,10 @@ class CrossAttnBlock(nn.Module):
             nn.Linear(ff_dim, d_model),
             nn.Dropout(dropout),
         )
+        # Initialize FFN output near zero so delta ≈ 0 at init.
+        # This preserves single-frame behavior after loading pretrained weights.
+        nn.init.zeros_(self.ffn[3].weight)
+        nn.init.zeros_(self.ffn[3].bias)
 
     def forward(self, q: torch.Tensor, kv: torch.Tensor) -> torch.Tensor:
         """Returns delta only (no residual).
@@ -82,10 +94,22 @@ class TemporalCrossAttention(nn.Module):
 
     def __init__(self, d_model: int = 128, n_heads: int = 4,
                  ff_dim: int = 256, max_lag: int = 16,
-                 dropout: float = 0.1) -> None:
+                 range_context: int = 16, dropout: float = 0.1) -> None:
         super().__init__()
         self.block = CrossAttnBlock(d_model, n_heads, ff_dim, dropout)
         self.lag_embed = nn.Embedding(max_lag, d_model)
+        # Range-context conv: expands each history KV position's receptive field
+        # to ±range_context bins (~±0.34m at 2cm/bin). This compensates for
+        # target radial motion between frames (at 1.5 m/s, ~15 bins over 5 frames).
+        # Depthwise + pointwise: cheap (~20K params) but gives each KV position
+        # context from neighboring range bins so the per-range-bin attention can
+        # find targets that moved in range.
+        kernel = 2 * range_context + 1  # 33 bins
+        self.history_range_conv = nn.Sequential(
+            nn.Conv1d(d_model, d_model, kernel, padding=range_context, groups=d_model),
+            nn.Conv1d(d_model, d_model, 1),
+            nn.ReLU(inplace=True),
+        )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Per-range-bin temporal fusion.
@@ -106,10 +130,17 @@ class TemporalCrossAttention(nn.Module):
         assert N - 1 <= self.lag_embed.num_embeddings, \
             f"History length {N-1} exceeds max_lag {self.lag_embed.num_embeddings}"
 
+        # Expand history range context: each range bin now encodes ±range_context neighbors.
+        # This lets per-range-bin attention find targets that moved in range between frames.
+        # Process each history frame through the range conv (shared weights).
+        hist_flat = history.reshape(B * (N - 1), C, R)          # (B*(N-1), C, R)
+        hist_ctx = self.history_range_conv(hist_flat)            # (B*(N-1), C, R)
+        history = hist_ctx.reshape(B, N - 1, C, R)              # (B, N-1, C, R)
+
         # Per-range-bin: each range bin is independent
         # q: current frame features per range bin
         q = current.permute(0, 2, 1).reshape(B * R, 1, C)        # (B*R, 1, C)
-        # kv: history frames per range bin
+        # kv: history frames per range bin (now with range context)
         kv = history.permute(0, 3, 1, 2).reshape(B * R, N - 1, C)  # (B*R, N-1, C)
 
         # Learnable lag encoding: most recent history = lag 0, oldest = lag N-2
