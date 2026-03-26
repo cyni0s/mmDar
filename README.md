@@ -15,6 +15,7 @@ Each improvement is isolated and ablated so the contribution of each change is m
 | **5090-optimized** | **0.295** | **0.189** | **41** | **batch=12, lr=7e-5, fp32, epoch 10 (22 min)** |
 | baseline_pretrained | 0.363 | 0.247 | 41 | Authors' pretrained 120.pt_gen |
 | v2 Mag+Phase (raw IQ) | 0.309 | 0.423 | **1** | Single-frame, no PNG preprocessing, 2.08M params, 1.3ms |
+| **v2 Temporal xattn** | **0.295** | **0.429** | **8** | **Matches baseline Chamfer, 8× fewer params (2.2M), 5× fewer frames** |
 
 *All values are median over 18,575 test samples using legacy-cartesian coordinate conversion (paper-comparable pipeline).*
 
@@ -236,6 +237,9 @@ The `legacy_cartesian` mode reproduces the paper's eval pipeline within 3% (Cham
 - **"Bugs" can be features.** The Conv1d(256→128) bridge collapses 256 angular bins into 128 abstract channel features — destroying explicit angular topology but providing rich per-range-position features. When we "fixed" this with Conv2d(3→128) preserving 2D layout, the model got worse because each position only sees 3 local features instead of 256 global angular bins. The right inductive bias depends on the downstream consumer (MLP vs conv).
 - **Capacity matters for occupancy prediction.** A 75K-param dilated conv head on polar occupancy (256×512, 0.8% positive) produced Chamfer 0.750m — the model couldn't learn from the sparse labels. The baseline U-Net uses 17.5M params. Dense occupancy prediction from sparse labels requires multi-scale capacity, not a flat conv head.
 - **Change one variable at a time.** The occupancy experiment changed the decoder (point→occupancy), loss (Chamfer→focal BCE+Dice), output format, AND reduced params by 25×. All at once. The result was uninterpretable — did the idea fail or just the specific implementation? The 2D angular fix (one variable changed) gave a clear answer.
+- **Temporal cross-attention matches baseline Chamfer with 8 frames (not 41) and 8× fewer params.** But mod-Hausdorff is unchanged. Most of the Chamfer gain comes from pretrained initialization, not temporal fusion. The per-range-bin cross-attention adds only ~0.005m Chamfer and 0 mod-H on test set.
+- **Validation on 4 trajectories is unreliable.** Val showed 14% temporal improvement; test showed 1.7%. The unit of variation is trajectory, not frame — 4 trajectories cannot represent 19.
+- **The mod-H gap (0.429 vs 0.189) is an output representation problem, not temporal.** Fixed 8192-point decoders must place all points somewhere, while occupancy thresholding naturally adapts cardinality. Also: eval pipelines differ (direct point cloud vs PNG→Cartesian conversion). These must be standardized before mod-H comparisons are meaningful.
 
 ### Hyperparameter Sweep Summary (RTX 5090)
 

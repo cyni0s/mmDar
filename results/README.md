@@ -213,6 +213,66 @@ Single-frame radar at 0.309m Chamfer is close to the 41-frame baseline (0.295m).
 
 **Next step:** Temporal scaling study (1/3/5/8/41 frame Pareto curve) using the working 1D Mag+Phase decoder.
 
+## Phase 4: Temporal Cross-Attention Transformer
+
+**Hypothesis:** Per-range-bin temporal cross-attention (current frame queries history frames) would improve coverage by learning adaptive temporal fusion, matching or beating the baseline's 41-frame channel stacking with fewer frames.
+
+**Architecture:** TemporalMagPhaseFusion — per-frame FFT + mag/sin/cos + Conv1d bridge (shared weights), 1-layer cross-attention block (d=128, 4 heads, ff=256), residual design (fused = current + delta, N=1 = identity), learnable lag encoding, range-context Conv1d on history KV (±16 bins for radial motion compensation). 2.23M params total (155K temporal).
+
+**Training:** Pretrained from single-frame Mag+Phase checkpoint. Staged: 5 epochs frozen backbone (temporal only), then joint fine-tune at 10× lower backbone LR. Variable window N∈{3,5,8} during training, eval at N∈{1,3,5,8}. batch=12, lr=7e-5. Early stopped at epoch 37, best at epoch 27.
+
+### Results (Test Set, 19K+ samples, GPU-accelerated eval)
+
+| N frames | Chamfer (m) | Mod-H (m) | Samples |
+|----------|-------------|-----------|---------|
+| 1 | 0.300 | 0.418 | 19,333 |
+| 3 | 0.297 | 0.434 | 19,295 |
+| 5 | 0.295 | 0.429 | 19,257 |
+| 8 | 0.295 | 0.429 | 19,200 |
+
+### Comparison with baselines
+
+| Model | Chamfer (m) | Mod-H (m) | Frames | Params | Eval method |
+|-------|-------------|-----------|--------|--------|-------------|
+| RadarHD 41-frame baseline | 0.295 | 0.189 | 41 | 17.5M | PNG → legacy_cartesian |
+| v2 Mag+Phase (single-frame) | 0.309 | 0.423 | 1 | 2.08M | Direct point cloud |
+| **v2 Temporal xattn N=1** | **0.300** | **0.418** | **1** | **2.2M** | **Direct point cloud** |
+| **v2 Temporal xattn N=8** | **0.295** | **0.429** | **8** | **2.2M** | **Direct point cloud** |
+
+### Analysis
+
+**What worked:**
+- Chamfer 0.295m with 8 frames matches the 41-frame baseline, using 5× fewer frames and 8× fewer params
+- N=1 through the temporal model (0.300) is better than original single-frame (0.309) — warm start from pretrained checkpoint helps
+
+**What did NOT work:**
+- Mod-Hausdorff shows NO improvement from temporal fusion (0.418 → 0.429, flat or slightly worse)
+- Most of the Chamfer gain comes from pretraining/architecture, not temporal fusion (0.300 at N=1 vs 0.295 at N=8 = only 0.005 from temporal context)
+- Validation set was highly misleading — showed strong Pareto curve that did not generalize to test
+
+### Val vs Test discrepancy
+
+| N | Val Chamfer | Test Chamfer | Val Mod-H | Test Mod-H |
+|---|-------------|-------------|-----------|-----------|
+| 1 | 0.266 | 0.300 | 0.329 | 0.418 |
+| 8 | 0.229 | 0.295 | 0.280 | 0.429 |
+
+Val (4 trajectories) showed 14% Chamfer improvement and 15% mod-H improvement from N=1→N=8. Test (19 trajectories) showed 1.7% Chamfer improvement and 0% mod-H improvement. The val set is too small/unrepresentative for model selection in this task.
+
+### Root cause: mod-Hausdorff gap is NOT temporal
+
+The mod-H gap (0.429 vs baseline 0.189) persists regardless of temporal context. Likely causes:
+1. **Output representation mismatch**: Our decoder outputs a fixed 8192-point set. The baseline outputs variable-size point clouds from occupancy thresholding. Fixed-cardinality decoders must place all points somewhere even when uncertain, leading to points in wrong locations that mod-H punishes.
+2. **Eval pipeline difference**: Baseline eval goes through PNG → Cartesian conversion → point cloud extraction. Our eval compares raw decoder output against FPS lidar. These are different measurement pipelines.
+3. **The decoder's coverage loss (0.25m threshold) is too lenient** to drive mod-H improvement.
+
+### Lessons Learned
+
+- **Validation on 4 trajectories is unreliable.** The unit of variation is trajectory, not frame. 4 trajectories cannot represent the test distribution of 19 trajectories. Use at least 6-8 trajectories for validation, or use cross-validation.
+- **Temporal fusion provides marginal test-set benefit in this architecture.** The per-range-bin cross-attention adds ~0.005 Chamfer and 0 mod-H. The "temporal coverage" hypothesis from Phase 3 was partially wrong — the gap is more about output representation than temporal context.
+- **Pretrained initialization matters more than temporal fusion.** The warm-started N=1 model (0.300) already improved over cold-started single-frame (0.309) by more than temporal fusion added (0.300 → 0.295).
+- **Always use GPU eval (torch.cdist) for 8192-point clouds.** CPU scipy eval takes hours; GPU takes minutes.
+
 ## Future Experiments
 
 Ideas to test separately from the main architectural ablation. Each should be isolated to avoid confounding.
