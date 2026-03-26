@@ -231,17 +231,18 @@ class TemporalMagPhaseFusion(nn.Module):
             src_state = ckpt["model_state_dict"]
         elif isinstance(ckpt, dict) and "state_dict" in ckpt:
             src_state = ckpt["state_dict"]
-        elif isinstance(ckpt, dict) and any(
-            k.startswith(("beamformer", "bridge", "decoder")) for k in ckpt
-        ):
-            src_state = ckpt
         else:
+            src_state = ckpt if isinstance(ckpt, dict) else {}
+
+        # Strip "module." prefix FIRST, then validate
+        src_state = {k.removeprefix("module."): v for k, v in src_state.items()}
+        expected = ("beamformer", "bridge", "decoder")
+        if not any(k.startswith(expected) for k in src_state):
             raise ValueError(
                 f"Cannot find state dict. Keys: {list(ckpt.keys())[:10]}"
             )
 
-        # Strip DataParallel "module." prefix if present
-        src_state = {k.removeprefix("module."): v for k, v in src_state.items()}
+        # module. prefix already stripped above
         own_state = self.state_dict()
 
         loaded, skipped, mismatched = 0, 0, 0
