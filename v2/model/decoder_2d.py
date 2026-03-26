@@ -114,9 +114,10 @@ class PointCloudDecoder2D(nn.Module):
         )  # (1024, 3)
         self.register_buffer("template", template)
 
-        # Global encoder: (B, feature_ch, H, W) -> (B, global_dim, H, W) -> pool -> (B, global_dim)
-        # Conv2d with kernel_size=1 — pointwise, same computation as Conv1d but on 2D maps
-        # First Conv2d has bias=False to force dependence on beamformer signal
+        # Global encoder: pool spatial dims FIRST to avoid OOM on (B, 1024, 256, 512).
+        # AdaptiveMaxPool2d(1) reduces (B, C, 256, 512) → (B, C, 1, 1) before the
+        # channel-expansion layers, cutting peak activation memory by 131072×.
+        self.global_pool = nn.AdaptiveMaxPool2d(1)  # (B, C, H, W) → (B, C, 1, 1)
         self.global_encoder = nn.Sequential(
             nn.Conv2d(feature_ch, 256, kernel_size=1, bias=False),
             nn.ReLU(inplace=True),
@@ -151,9 +152,10 @@ class PointCloudDecoder2D(nn.Module):
         B = feature_map.shape[0]
 
         # --- Global scene descriptor ---
-        enc = self.global_encoder(feature_map)  # (B, global_dim, H, W)
-        # Global max pool over both spatial dimensions
-        global_desc = enc.amax(dim=(-2, -1))    # (B, global_dim)
+        # Pool spatial dims FIRST to avoid OOM: (B, C, 256, 512) → (B, C, 1, 1)
+        pooled = self.global_pool(feature_map)   # (B, feature_ch, 1, 1)
+        enc = self.global_encoder(pooled)         # (B, global_dim, 1, 1)
+        global_desc = enc.squeeze(-1).squeeze(-1) # (B, global_dim)
 
         # --- Initialize from polar template ---
         pts = self.template.unsqueeze(0).expand(B, -1, -1).clone()  # (B, 1024, 3)
