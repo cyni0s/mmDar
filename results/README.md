@@ -273,6 +273,32 @@ The mod-H gap (0.429 vs baseline 0.189) persists regardless of temporal context.
 - **Pretrained initialization matters more than temporal fusion.** The warm-started N=1 model (0.300) already improved over cold-started single-frame (0.309) by more than temporal fusion added (0.300 → 0.295).
 - **Always use GPU eval (torch.cdist) for 8192-point clouds.** CPU scipy eval takes hours; GPU takes minutes.
 
+## Phase 5: Physics-Informed Losses (Negative Result)
+
+**Hypothesis:** Resolution-aware Tversky recall loss + radar positive-support loss in polar space would improve mod-Hausdorff by directly penalizing coverage gaps.
+
+**Architecture:** Differentiable soft-splatting (bilinear binning + Gaussian blur σ_r=1.0, σ_u=14 + exp bounding) converts predicted/GT points to polar occupancy. Tversky(α=0.3, β=0.7) penalizes missed GT. Radar support loss penalizes uncovered strong-return cells.
+
+### Attempt 1: Direct physics losses (λ_recall=0.15, λ_support=0.03)
+**Result:** Training diverged. Chamfer went from 1.06 (ep0) to 14.5 (ep4). Physics losses dominated and destabilized point decoder.
+
+### Attempt 2: Annealed physics losses (ramp epochs 5-15, λ_recall=0.05, λ_support=0.01)
+**Result:** Stable for epochs 0-4 (physics=0, pure Chamfer). Diverged again as physics ramped in: Chamfer from 0.59 (ep5) to 7.1 (ep11).
+
+### Why it failed
+The soft-splatting Tversky recall loss and the Chamfer loss create competing gradients:
+- **Chamfer** pulls each point toward its nearest GT neighbor
+- **Tversky recall** pulls points toward uncovered GT regions in polar space
+- When a point is near a dense GT cluster but far from an uncovered region, these two forces oppose each other
+- The result: points oscillate and diverge from both objectives
+
+The loss landscape has saddle points where the geometric (Chamfer) and physics (recall) gradients cancel. The model cannot satisfy both simultaneously because it has a fixed number of points (8192) and cannot create new points to cover gaps.
+
+### Lessons
+- **Physics losses on fixed-cardinality point decoders create gradient conflicts.** The decoder can move points but not create them. Recall pressure moves points away from correct positions toward uncovered regions, destroying Chamfer.
+- **The mod-H gap is fundamentally a cardinality/representation problem.** No loss function can fix a decoder that must output exactly 8192 points when the scene needs variable coverage.
+- **Soft-splatting + Tversky is better suited to occupancy decoders** (which can increase/decrease predicted density) than point decoders (which can only move fixed points).
+
 ## Future Experiments
 
 Ideas to test separately from the main architectural ablation. Each should be isolated to avoid confounding.
