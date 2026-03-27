@@ -211,6 +211,30 @@ class MagnitudePhaseFusion(nn.Module):
         pts, conf = self.decoder(features)
         return pts, conf
 
+    def forward_with_intermediates(self, y):
+        """Forward pass returning beamformer power for physics losses.
+
+        Returns:
+            pts:  (B, 8192, 3) float32
+            conf: (B, 8192, 1) float32
+            beamformer_power: (B, N_az, 512) float32 — LINEAR power |X|²
+        """
+        spec = self.beamformer(y)                  # (B, N_az, 512) complex64
+        mag = safe_modulus(spec)                   # (B, N_az, 512) float32
+        beamformer_power = mag ** 2                # (B, N_az, 512) — LINEAR power
+
+        phase = torch.angle(spec)
+        sin_ph = torch.sin(phase)
+        cos_ph = torch.cos(phase)
+        gate = (mag > mag.mean(dim=1, keepdim=True) * 0.1).float()
+        sin_ph = sin_ph * gate
+        cos_ph = cos_ph * gate
+
+        fused = torch.cat([mag, sin_ph, cos_ph], dim=1)
+        features = self.bridge(fused)
+        pts, conf = self.decoder(features)
+        return pts, conf, beamformer_power
+
 
 class MagnitudeBaseline2D(nn.Module):
     """Single-frame magnitude baseline with 2D angular topology preserved.

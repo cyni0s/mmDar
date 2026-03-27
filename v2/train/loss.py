@@ -294,6 +294,11 @@ def composite_loss(
     lista_output: torch.Tensor | None = None,
     radar_input: torch.Tensor | None = None,
     steering_matrix: torch.Tensor | None = None,
+    # Physics losses
+    beamformer_power: torch.Tensor | None = None,
+    use_physics_loss: bool = False,
+    physics_recall_weight: float = 0.15,
+    physics_support_weight: float = 0.03,
 ) -> dict[str, torch.Tensor]:
     """Composite point cloud reconstruction loss.
 
@@ -356,6 +361,23 @@ def composite_loss(
     else:
         mc_loss = torch.tensor(0.0, device=pred_pts.device, dtype=pred_pts.dtype)
 
+    # --- Physics losses (polar recall + radar support) ---
+    if use_physics_loss:
+        from v2.train.loss_physics import SoftSplat, ra_recall_loss, radar_support_loss
+        if not hasattr(composite_loss, '_splat') or composite_loss._splat.kernel_r.device != pred_pts.device:
+            composite_loss._splat = SoftSplat().to(pred_pts.device)
+        splat = composite_loss._splat
+        O_pred = splat(pred_pts)
+        O_gt = splat(gt_pts.detach())
+        ra_loss = ra_recall_loss(O_pred, O_gt)
+        if beamformer_power is not None:
+            rs_loss = radar_support_loss(O_pred, beamformer_power.detach())
+        else:
+            rs_loss = torch.tensor(0.0, device=pred_pts.device, dtype=pred_pts.dtype)
+    else:
+        ra_loss = torch.tensor(0.0, device=pred_pts.device, dtype=pred_pts.dtype)
+        rs_loss = torch.tensor(0.0, device=pred_pts.device, dtype=pred_pts.dtype)
+
     # --- Total loss ---
     total = (
         ch_loss
@@ -363,6 +385,8 @@ def composite_loss(
         + 0.1 * cov_loss
         + 0.01 * conf_l
         + 0.1 * mc_loss
+        + physics_recall_weight * ra_loss
+        + physics_support_weight * rs_loss
     )
 
     return {
@@ -372,4 +396,6 @@ def composite_loss(
         "coverage": cov_loss,
         "confidence": conf_l,
         "measurement_consistency": mc_loss,
+        "ra_recall": ra_loss,
+        "radar_support": rs_loss,
     }

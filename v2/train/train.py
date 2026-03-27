@@ -222,7 +222,7 @@ def train(config: dict | None = None) -> dict:
 
         # --- Train epoch ---
         model.train()
-        epoch_losses = {k: 0.0 for k in ("total", "chamfer", "dcd", "coverage", "confidence", "measurement_consistency")}
+        epoch_losses = {k: 0.0 for k in ("total", "chamfer", "dcd", "coverage", "confidence", "measurement_consistency", "ra_recall", "radar_support")}
         n_batches = 0
 
         # Get steering matrix for measurement consistency loss (CVNN model only)
@@ -232,15 +232,21 @@ def train(config: dict | None = None) -> dict:
             radar = radar.to(device)    # (B, 8, 512) complex64
             lidar = lidar.to(device)   # (B, 8192, 3) float32
 
-            # Forward with intermediate LISTA output for measurement consistency
-            if has_lista and hasattr(model, "forward_with_intermediates"):
+            # Forward with intermediates for measurement consistency / physics losses
+            use_physics = cfg.get("use_physics_loss", False)
+            if use_physics and hasattr(model, "forward_with_intermediates"):
+                pts, conf, bf_power = model.forward_with_intermediates(radar)
+                bf_out = None
+                A_eff = None
+            elif has_lista and hasattr(model, "forward_with_intermediates"):
                 pts, conf, bf_out = model.forward_with_intermediates(radar)
-                # Effective steering matrix: g * A (matching beamformer forward)
                 A_eff = model.beamformer.g.unsqueeze(-1) * model.beamformer.A
+                bf_power = None
             else:
                 pts, conf = model(radar)
                 bf_out = None
                 A_eff = None
+                bf_power = None
 
             losses = composite_loss(
                 pts,
@@ -251,9 +257,13 @@ def train(config: dict | None = None) -> dict:
                 use_coverage=cfg["use_coverage_loss"],
                 use_confidence=cfg["use_confidence_loss"],
                 coverage_threshold=cfg["coverage_threshold"],
-                lista_output=bf_out,
-                radar_input=radar if bf_out is not None else None,
-                steering_matrix=A_eff,
+                lista_output=bf_out if has_lista else None,
+                radar_input=radar if has_lista and bf_out is not None else None,
+                steering_matrix=A_eff if has_lista else None,
+                beamformer_power=bf_power,
+                use_physics_loss=cfg.get("use_physics_loss", False),
+                physics_recall_weight=cfg.get("physics_recall_weight", 0.15),
+                physics_support_weight=cfg.get("physics_support_weight", 0.03),
             )
 
             optimizer.zero_grad()
@@ -294,6 +304,10 @@ def train(config: dict | None = None) -> dict:
             writer.add_scalar(
                 f"train/{key}", epoch_losses[key] / max(1, n_batches), epoch
             )
+
+        if cfg.get("use_physics_loss", False):
+            writer.add_scalar("train/ra_recall", epoch_losses["ra_recall"] / max(1, n_batches), epoch)
+            writer.add_scalar("train/radar_support", epoch_losses["radar_support"] / max(1, n_batches), epoch)
 
         # Log learning rate (main param group = first group)
         current_lr = optimizer.param_groups[0]["lr"]
@@ -526,6 +540,12 @@ if __name__ == "__main__":
         help="Model type: 'cvnn' (LISTA+complex), 'magnitude' (FFT+mag 1D), "
              "'magnitude_2d' (FFT+mag 2D angular), 'mag_phase_2d' (FFT+mag+phase 2D)"
     )
+    parser.add_argument("--use-physics-loss", action="store_true", default=False,
+        dest="use_physics_loss", help="Enable physics-informed polar recall + radar support losses")
+    parser.add_argument("--physics-recall-weight", type=float, default=0.15,
+        dest="physics_recall_weight", help="Weight for polar Tversky recall loss")
+    parser.add_argument("--physics-support-weight", type=float, default=0.03,
+        dest="physics_support_weight", help="Weight for radar positive support loss")
 
     args = parser.parse_args()
 
@@ -546,6 +566,9 @@ if __name__ == "__main__":
         "checkpoint_every": args.checkpoint_every,
         "num_workers": args.num_workers,
         "model_type": args.model_type,
+        "use_physics_loss": args.use_physics_loss,
+        "physics_recall_weight": args.physics_recall_weight,
+        "physics_support_weight": args.physics_support_weight,
     }
 
     train(config)
