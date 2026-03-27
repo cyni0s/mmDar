@@ -378,6 +378,15 @@ def composite_loss(
         ra_loss = torch.tensor(0.0, device=pred_pts.device, dtype=pred_pts.dtype)
         rs_loss = torch.tensor(0.0, device=pred_pts.device, dtype=pred_pts.dtype)
 
+    # --- Physics loss annealing: 0 for epochs 0-4, linear ramp 5-14, full at 15+ ---
+    # Let Chamfer establish basic point placement before physics losses compete
+    if epoch < 5:
+        physics_scale = 0.0
+    elif epoch < 15:
+        physics_scale = (epoch - 5) / 10.0
+    else:
+        physics_scale = 1.0
+
     # --- Total loss ---
     total = (
         ch_loss
@@ -385,8 +394,8 @@ def composite_loss(
         + 0.1 * cov_loss
         + 0.01 * conf_l
         + 0.1 * mc_loss
-        + physics_recall_weight * ra_loss
-        + physics_support_weight * rs_loss
+        + physics_scale * physics_recall_weight * ra_loss
+        + physics_scale * physics_support_weight * rs_loss
     )
 
     return {
