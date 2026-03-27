@@ -187,7 +187,7 @@ def run_experiment(args):
     # Load test data
     test_set = Dataset('dataset_5/', 'test',
                        RBINS=256, ABINS_RADAR=64, ABINS_LIDAR=512,
-                       RBINS_ORIG=256, ABINS_RADAR_ORIG=64, ABINS_LIDAR_ORIG=1024,
+                       RBINS_ORIG=256, ABINS_RADAR_ORIG=64, ABINS_LIDAR_ORIG=512,
                        M=HISTORY)
     test_loader = torch.utils.data.DataLoader(test_set, batch_size=1,
                                                shuffle=False, num_workers=0)
