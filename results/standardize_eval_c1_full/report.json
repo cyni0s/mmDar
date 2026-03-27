@@ -1,0 +1,34 @@
+{
+  "C1": {
+    "chamfer_median": 0.2888563871383667,
+    "chamfer_mean": 0.37916530168754414,
+    "chamfer_std": 0.2618225238083908,
+    "mod_h_median": 0.18594221770763397,
+    "mod_h_mean": 0.28556940933175556,
+    "mod_h_std": 0.2568890357602633,
+    "nn_pred2gt_median": 0.1803232580423355,
+    "nn_gt2pred_median": 0.08364871889352798,
+    "n_pred_median": 2874.0,
+    "n_gt_median": 665.0,
+    "n_pred_p5": 1258.7,
+    "n_pred_p95": 5089.0,
+    "n_valid": 18575,
+    "n_empty": 0
+  },
+  "meta": {
+    "checkpoint": "logs/sweep_b12_lr7e-05_fp32_20260319-140647/010.pt_gen",
+    "n_samples": 18575,
+    "cardinalities": [
+      256,
+      512,
+      1024,
+      2048,
+      4096,
+      8192,
+      16384
+    ],
+    "seed": 0,
+    "elapsed_s": 4981.4,
+    "full_test_set": true
+  }
+}

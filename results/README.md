@@ -262,8 +262,8 @@ Val (4 trajectories) showed 14% Chamfer improvement and 15% mod-H improvement fr
 ### Root cause: mod-Hausdorff gap is NOT temporal
 
 The mod-H gap (0.429 vs baseline 0.189) persists regardless of temporal context. Likely causes:
-1. **Output representation mismatch**: Our decoder outputs a fixed 8192-point set. The baseline outputs variable-size point clouds from occupancy thresholding. Fixed-cardinality decoders must place all points somewhere even when uncertain, leading to points in wrong locations that mod-H punishes.
-2. **Eval pipeline difference**: Baseline eval goes through PNG → Cartesian conversion → point cloud extraction. Our eval compares raw decoder output against FPS lidar. These are different measurement pipelines.
+1. ~~**Output representation mismatch**: Fixed 8192-point decoder must place all points somewhere~~ — **DISPROVEN** by Phase 6 cardinality experiment: baseline uses only ~2874 pred points and ~665 GT points, so 8192 is MORE than enough.
+2. **Eval pipeline difference**: Baseline eval goes through PNG → Cartesian conversion → point cloud extraction (~665 grid-quantized points). Our eval compares raw decoder output (8192 continuous points) against FPS lidar (8192 continuous points). These are different measurement pipelines with 12× GT density difference. **Leading suspect after Phase 6.**
 3. **The decoder's coverage loss (0.25m threshold) is too lenient** to drive mod-H improvement.
 
 ### Lessons Learned
@@ -296,8 +296,76 @@ The loss landscape has saddle points where the geometric (Chamfer) and physics (
 
 ### Lessons
 - **Physics losses on fixed-cardinality point decoders create gradient conflicts.** The decoder can move points but not create them. Recall pressure moves points away from correct positions toward uncovered regions, destroying Chamfer.
-- **The mod-H gap is fundamentally a cardinality/representation problem.** No loss function can fix a decoder that must output exactly 8192 points when the scene needs variable coverage.
+- ~~**The mod-H gap is fundamentally a cardinality/representation problem.**~~ — **DISPROVEN** by Phase 6: the baseline achieves 0.186 mod-H with only ~2874 points. The gap is more likely eval pipeline mismatch (GT density/quantization), not point count.
 - **Soft-splatting + Tversky is better suited to occupancy decoders** (which can increase/decrease predicted density) than point decoders (which can only move fixed points).
+
+## Phase 6: Standardized Eval — Cardinality Impact (Negative Result)
+
+**Hypothesis:** The mod-H gap (0.429 vs 0.189) is caused by the v2 decoder's fixed 8192-point output, while the baseline outputs variable-size point clouds from occupancy thresholding.
+
+**Method:** Ran baseline inference (UNet1, epoch 10, fp32) on full test set (18,575 samples), converted polar output to point clouds in-memory (replicating exact uint8 quantization), then FPS-subsampled to various fixed cardinalities. Evaluated 4 conditions (variable/FPS pred × variable/FPS GT) × 7 cardinalities (256–16384). GPU-accelerated metrics via torch.cdist.
+
+**Script:** `v2/eval/standardize_eval.py`
+
+### C1 Parity (full test set)
+
+| Metric | Baseline (scipy, f64) | In-memory (torch, f32) | Delta |
+|--------|----------------------|------------------------|-------|
+| Chamfer | 0.295 | 0.289 | -2.1% |
+| mod-H | 0.189 | 0.186 | -1.6% |
+
+Small systematic bias from float32 vs float64. Parity confirmed for relative comparisons.
+
+### Key Finding: Baseline point clouds are naturally small
+
+| Stat | Pred | GT |
+|------|------|----|
+| Median points | 2874 | 665 |
+| P5 | 2500 | — |
+| P95 | 5778 | — |
+
+At N=8192, FPS is a **complete no-op** for 98.9% of pred samples and 100% of GT samples. The baseline's point clouds are far smaller than 8192.
+
+### Cardinality sweep (pilot, 2000 samples)
+
+C2 (FPS pred, variable GT) — pred-side cardinality effect:
+
+| N | Chamfer | Mod-H | Delta from C1 |
+|---|---------|-------|---------------|
+| 256 | 0.187 | 0.132 | +11% |
+| 512 | 0.170 | 0.127 | +7% |
+| 1024 | 0.160 | 0.125 | +5% |
+| 2048 | 0.152 | 0.121 | +2% |
+| 4096+ | 0.149 | 0.119 | ~0% (saturated) |
+
+Degradation only appears when subsampling below the natural cloud size (~2874). At N=8192, all conditions are identical to the variable baseline.
+
+### Directed terms (full test set, C1)
+
+| Direction | Median |
+|-----------|--------|
+| nn_pred→gt | 0.180 |
+| nn_gt→pred | 0.084 |
+
+Pred→gt (precision) dominates mod-H, not gt→pred (coverage). The model's imprecise points drive the metric more than missing GT coverage.
+
+### Result: Hypothesis FALSIFIED
+
+The 8192-point cardinality is **not** the bottleneck. The baseline achieves excellent mod-H (0.186) with only ~2874 pred points and ~665 GT points. Having more points (8192) should make it easier, not harder.
+
+### Real suspect: Eval pipeline mismatch
+
+The two eval pipelines use fundamentally different ground truth:
+- **Baseline GT**: 256×512 binary PNG → legacy_cartesian extraction → ~665 grid-quantized points (4.2cm spacing)
+- **v2 GT**: raw lidar (20K pts) → scene filter → FPS → 8192 continuous points
+
+The v2 model must match 12× denser GT at higher spatial precision. Phase 7 will test this by evaluating v2 predictions against baseline-style GT.
+
+### Lessons
+- **Don't assume the bottleneck without measuring.** The "fixed cardinality" explanation seemed logical after 5 failed experiments, but the baseline only uses ~2874 points — fewer than the v2's 8192.
+- **Always check point count distributions before designing cardinality experiments.** If we had checked baseline cloud sizes first, we'd have pivoted directly to GT mismatch.
+- **torch.cdist (float32) gives ~2% lower values than scipy.cdist (float64).** For relative comparisons this is fine, but don't mix the two when comparing absolute numbers.
+- **Sequential pilot subsets are biased.** The first 2000 samples (trajectories 117, 124) gave median Chamfer 0.149 vs full-set 0.289. Use stratified or random sampling for pilots.
 
 ## Future Experiments
 
