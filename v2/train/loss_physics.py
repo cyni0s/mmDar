@@ -109,3 +109,45 @@ class SoftSplat(nn.Module):
 
         # Bounded output: 1 - exp(-I) maps [0, inf) -> [0, 1)
         return 1.0 - torch.exp(-intensity)
+
+
+def ra_recall_loss(O_pred, O_gt, alpha=0.3, beta=0.7, smooth=1.0):
+    """Resolution-aware Tversky recall loss in polar space.
+
+    Uses relu-based FP/FN for correct soft-occupancy behavior:
+    - FP = relu(O_pred - O_gt): where pred exceeds GT
+    - FN = relu(O_gt - O_pred): where GT exceeds pred (missed coverage)
+    - intersection = min(O_pred, O_gt)
+
+    alpha=0.3 (FP lightly penalized), beta=0.7 (FN heavily penalized -> attacks mod-H).
+    Zero loss when O_pred == O_gt. Safe when both are zero (smooth prevents 0/0).
+    """
+    O_pred = O_pred.squeeze(1)  # (B, H, W)
+    O_gt = O_gt.squeeze(1)
+
+    intersection = torch.min(O_pred, O_gt).sum(dim=(-2, -1))
+    FP = F.relu(O_pred - O_gt).sum(dim=(-2, -1))
+    FN = F.relu(O_gt - O_pred).sum(dim=(-2, -1))
+
+    tversky = (intersection + smooth) / (intersection + alpha * FP + beta * FN + smooth)
+    return (1 - tversky).mean()
+
+
+def radar_support_loss(O_pred, beamformer_power, k=6.0, eps=1e-6):
+    """Radar positive-support loss: coverage at strong-return cells.
+
+    beamformer_power MUST be linear power (|X|^2), shape (B, H, W).
+
+    Heuristic threshold: cell is radar-positive if power > azimuth_mean * k.
+    k=6.0 -> ~0.25% false alarm under exponential noise model.
+    """
+    O_pred_sq = O_pred.squeeze(1)  # (B, H, W)
+
+    mean_power = beamformer_power.mean(dim=1, keepdim=True)  # mean over azimuth
+    mask = (beamformer_power > mean_power * k).float()
+
+    n_positive = mask.sum()
+    if n_positive == 0:
+        return torch.tensor(0.0, device=O_pred.device)
+
+    return -(mask * torch.log(O_pred_sq + eps)).sum() / n_positive.clamp_min(1.0)
