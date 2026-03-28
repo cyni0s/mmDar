@@ -195,8 +195,11 @@ def run_experiment(args):
 
     # Load v2 temporal model
     model = TemporalMagPhaseFusion(N_az=256, bridge_out_ch=128, max_lag=16)
-    ckpt = torch.load(args.checkpoint, map_location=device, weights_only=True)
-    model.load_state_dict(ckpt)
+    ckpt = torch.load(args.checkpoint, map_location=device, weights_only=False)
+    if isinstance(ckpt, dict) and 'model_state_dict' in ckpt:
+        model.load_state_dict(ckpt['model_state_dict'])
+    else:
+        model.load_state_dict(ckpt)
     model = model.to(device)
     model.eval()
     print(f'Loaded: {args.checkpoint}')
