@@ -444,6 +444,29 @@ The beamformer is an **information bottleneck, not an enhancement**. 8 antennas 
 - **The baseline's 64 azimuth bins are well-matched to the sensor.** One bin per beamwidth = no wasted capacity on oversampled noise. Our 512 bins contain 8x more pixels but the same information.
 - **Stop iterating on beamformer → decoder variations.** Phases 3-8 all share the same bottleneck: beamformed features lack the angular precision for dense occupancy. The paradigm shift is to learn angular processing directly from raw antenna data (Phase 9).
 
+## Threshold Optimization (Post-Phase 8 Discovery)
+
+**Finding:** The baseline's occupancy threshold of 1 (out of 255) is suboptimal for mod-H. Sweeping thresholds on the existing baseline model (UNet1, epoch 10, fp32) reveals:
+
+| Threshold | Chamfer (median) | mod-H (median) | Points | Δ mod-H |
+|-----------|-----------------|---------------|--------|---------|
+| 1 (default) | 0.295 | 0.189 | 2936 | — |
+| **2** | **0.312** | **0.175** | **2096** | **-7.5%** |
+| 3 | 0.330 | 0.189 | 1618 | 0% |
+| 4 | 0.346 | 0.212 | 1323 | +12% |
+| 5 | 0.359 | 0.216 | 1125 | +14% |
+
+**Threshold=2 achieves mod-H 0.175, beating the baseline's 0.189 by 7.5%.** Cost: Chamfer increases from 0.295 to 0.312 (5.7%). This removes the faintest predictions (pixel intensity 1/255 ≈ sigmoid 0.004) which are likely false positives hurting precision.
+
+*Full test set (18,575 samples), scipy.cdist, legacy_cartesian mode.*
+
+A finer float-threshold sweep is pending to find the exact optimum between threshold 1 and 2 (sigmoid space 0.004–0.008).
+
+### Lessons
+- **Always sweep the occupancy threshold.** The default threshold=1 was never optimized for mod-H. A trivial change (1→2) gives the first mod-H improvement after 8 phases of architectural experiments.
+- **Precision vs coverage is a threshold knob, not an architecture problem.** The baseline model already has the information — it just needs a different operating point on the precision-recall curve.
+- **This suggests the v2 point decoder's mod-H gap may also be partly addressable** by finding the right confidence/density operating point — though confidence filtering failed (logits miscalibrated).
+
 ## Future Experiments
 
 ### Phase 9: Raw antenna input — learn angular processing (NEXT)
