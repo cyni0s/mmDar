@@ -410,12 +410,44 @@ The v2 decoder places 8192 points but many are inaccurate. The baseline's ~2874 
 - **The mod-H gap is a genuine model quality difference, not an eval artifact.** Five experiments tried to explain it away (angular topology, physics losses, temporal fusion, fixed cardinality, GT mismatch). All failed. The decoder's point placement precision is the actual bottleneck.
 - **Coverage ≠ precision.** The v2 model achieves excellent coverage (0.062 nn_g→p, better than baseline's 0.084) but pays for it with poor precision (0.322 nn_p→g). Chamfer averages both directions and looks good; mod-H takes the max and exposes the imbalance.
 - **Occupancy thresholding is a strong inductive bias.** The baseline's sigmoid + threshold naturally produces conservative, precise point clouds. The v2 point decoder must learn this precision from scratch via Chamfer loss, which optimizes the mean, not the max.
-- **Confidence-based filtering is the obvious next step.** The v2 model outputs per-point confidence logits. Filtering low-confidence (imprecise) points should improve precision at the cost of some coverage — potentially the right trade-off for mod-H.
+- **Coverage ≠ precision.** The v2 model achieves excellent coverage (0.062 nn_g→p, better than baseline's 0.084) but pays for it with poor precision (0.322 nn_p→g). Chamfer averages both directions and looks good; mod-H takes the max and exposes the imbalance.
+- **Occupancy thresholding is a strong inductive bias.** The baseline's sigmoid + threshold naturally produces conservative, precise point clouds. The v2 point decoder must learn this precision from scratch via Chamfer loss, which optimizes the mean, not the max.
+
+## Phase 8a: LISTA Log_Power + U-Net Occupancy (Negative Result)
+
+**Hypothesis:** Replacing the baseline's raw radar PNG input with LISTA FFT-beamformed log_power features (preserving phase information) would improve or match occupancy prediction.
+
+**Method:** Offline preprocessed all 44 trajectories through FFTBeamformer → log_power → azimuth reprojection (sin_theta-uniform → angle-uniform) → range downsampling (512→256). Stacked 41 frames as input channels to a symmetric U-Net (17.3M params, same depth as baseline). Trained with BCE + Dice loss, Adam lr=7e-5, batch=12 for 50 epochs.
+
+**Script:** `v2/data/preprocess_lista.py`, `v2/train/train_occupancy_unet.py`
+
+### Results
+
+| Metric | Baseline | Phase 8a (best, epoch 2) |
+|--------|----------|--------------------------|
+| Train loss | 0.065 | 0.820 |
+| Val loss | — | 0.976 (plateaued) |
+| Chamfer (m) | 0.295 | 1.281 |
+| Mod-H (m) | 0.189 | 1.844 |
+
+Training overfit immediately: val loss plateaued at epoch 2 while train loss continued to decrease for 48 more epochs. The model predicted approximately the right occupancy density (~0.4% vs 0.75% label) but in wrong spatial locations.
+
+### Why it failed
+
+The FFT beamformer from 8 antennas gives ~14° angular resolution. On a 512-azimuth grid, each target appears as a ~40-bin-wide smooth blob. The U-Net input is dominated by oversampled, blurred spectral peaks with no sharp spatial structure — fundamentally different from the baseline's compact radar PNGs (64 azimuth bins ≈ one bin per beamwidth).
+
+The beamformer is an **information bottleneck, not an enhancement**. 8 antennas → 256-point FFT → 512-bin reprojection adds no angular information — just smoother interpolation of the same 8 independent measurements.
+
+### Lessons
+
+- **Beamforming before the neural network is the wrong paradigm.** The FFT/LISTA beamformer collapses the multi-antenna phase structure into a spatial spectrum before the network sees it. No decoder can recover angular precision from an already-blurred representation.
+- **The baseline's 64 azimuth bins are well-matched to the sensor.** One bin per beamwidth = no wasted capacity on oversampled noise. Our 512 bins contain 8x more pixels but the same information.
+- **Stop iterating on beamformer → decoder variations.** Phases 3-8 all share the same bottleneck: beamformed features lack the angular precision for dense occupancy. The paradigm shift is to learn angular processing directly from raw antenna data (Phase 9).
 
 ## Future Experiments
 
-### Frame count sweep (after Phase 8)
-If the LISTA + U-Net occupancy decoder with 41-frame channel stacking matches or beats the baseline, sweep N ∈ {1, 3, 5, 8, 16, 24, 41} to find the minimum frame count that preserves mod-H. The baseline's temporal fusion may be over-provisioned — fewer frames with LISTA's phase-preserving beamforming could achieve the same result. This directly measures the information contribution of temporal integration vs signal processing quality.
+### Phase 9: Raw antenna input — learn angular processing (NEXT)
+Skip the beamformer entirely. Feed raw 8-antenna complex IQ per range bin directly to a learned angular processing module. The network must learn to extract angular information from phase relationships across antennas — not from a pre-blurred spatial spectrum. Output: polar occupancy with variable-cardinality thresholding. References: ADC-SR (CVPR 2023), SR-SPECNet (2024), Radar Fields (SIGGRAPH 2024). This is the actual paradigm shift — all phases 3-8 share the same beamformer bottleneck.
 
 ### Other future experiments
 
