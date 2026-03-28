@@ -414,6 +414,11 @@ The v2 decoder places 8192 points but many are inaccurate. The baseline's ~2874 
 
 ## Future Experiments
 
+### Frame count sweep (after Phase 8)
+If the LISTA + U-Net occupancy decoder with 41-frame channel stacking matches or beats the baseline, sweep N ∈ {1, 3, 5, 8, 16, 24, 41} to find the minimum frame count that preserves mod-H. The baseline's temporal fusion may be over-provisioned — fewer frames with LISTA's phase-preserving beamforming could achieve the same result. This directly measures the information contribution of temporal integration vs signal processing quality.
+
+### Other future experiments
+
 Ideas to test separately from the main architectural ablation. Each should be isolated to avoid confounding.
 
 - **Data augmentation**: random horizontal flip, intensity jitter, azimuth noise. The baseline already overfits by epoch 20 — augmentation may significantly extend the useful training window. Must be tested independently of architecture changes.
