@@ -40,7 +40,10 @@ def train_epoch(model, loader, optimizer, device, grad_clip=1.0):
         radar = radar.to(device)
         lidar = lidar.to(device)
         pred_pts, conf = model(radar)
-        loss = composite_loss(pred_pts, conf, lidar)
+        loss_dict = composite_loss(pred_pts, lidar, conf, epoch=0,
+                                   use_dcd=False, use_coverage=True,
+                                   use_confidence=True)
+        loss = loss_dict['total']
         optimizer.zero_grad()
         loss.backward()
         if grad_clip > 0:
