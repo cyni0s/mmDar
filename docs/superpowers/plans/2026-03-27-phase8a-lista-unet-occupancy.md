@@ -90,21 +90,29 @@ def reproject_azimuth(log_power: torch.Tensor) -> torch.Tensor:
     return out.squeeze(1)  # (N, 512, 512)
 
 
-def rasterize_lidar_to_baseline_grid(pts: np.ndarray) -> np.ndarray:
-    """Rasterize (8192, 3) point cloud to baseline eval grid (256r × 512az).
+def rasterize_lidar_to_polar_grid(pts: np.ndarray) -> np.ndarray:
+    """Rasterize (8192, 3) point cloud to (range, angle-uniform) polar grid (256r × 512az).
 
-    Uses searchsorted on eval_pointcloud.py grid constants for consistency.
+    CRITICAL: Labels must be in the SAME polar grid as the reprojected LISTA features.
+    Both use: range = linspace(0, 10.8, 256), angle = linspace(-90°, 90°, 512).
+    This is NOT the Cartesian eval grid (_x_axis_grid, _y_axis_grid).
     """
+    r_grid = np.linspace(0, RMAX, RBINS)       # 256 range bins
+    a_grid = np.linspace(-90, 90, ABINS)        # 512 angle bins (degrees)
+
     grid = np.zeros((RBINS, ABINS), dtype=np.uint8)
     if len(pts) == 0:
         return grid
     x, y = pts[:, 0], pts[:, 1]
-    mask = (x >= 0) & (x <= RMAX) & (y >= -RMAX) & (y <= RMAX)
-    x, y = x[mask], y[mask]
-    if len(x) == 0:
+    r = np.sqrt(x**2 + y**2)
+    angle_deg = np.degrees(np.arctan2(y, x))    # degrees, [-90, 90] for x>0
+
+    mask = (r > 0.01) & (r <= RMAX) & (x > 0) & (np.abs(angle_deg) <= 90)
+    r, angle_deg = r[mask], angle_deg[mask]
+    if len(r) == 0:
         return grid
-    row = np.clip(np.searchsorted(_x_axis_grid, x, side='left'), 0, RBINS - 1)
-    col = np.clip(np.searchsorted(_y_axis_grid, y, side='left'), 0, ABINS - 1)
+    row = np.clip(np.searchsorted(r_grid, r, side='left'), 0, RBINS - 1)
+    col = np.clip(np.searchsorted(a_grid, angle_deg, side='left'), 0, ABINS - 1)
     grid[row, col] = 1
     return grid
 
@@ -144,7 +152,7 @@ def process_trajectory(tid: int, bf: FFTBeamformer):
     torch.save(features.to(torch.float16), out_path)  # float16 to save space
 
     # Rasterize lidar labels
-    labels = np.stack([rasterize_lidar_to_baseline_grid(lidar[i]) for i in range(N)])
+    labels = np.stack([rasterize_lidar_to_polar_grid(lidar[i]) for i in range(N)])
     label_path = os.path.join(PROCESSED_DIR, f'lista_label_{tid}.pt')
     torch.save(torch.from_numpy(labels), label_path)
 
@@ -190,7 +198,7 @@ print(f'Label occupancy rate: {l.float().mean():.4f}')  # should be ~0.5-2%
 
 ```bash
 git add v2/data/preprocess_lista.py
-git commit -m "feat(v2/data): LISTA log_power preprocessing to baseline grid"
+git commit -m "feat(v2/data): LISTA log_power preprocessing to polar angle-uniform grid"
 ```
 
 ---
