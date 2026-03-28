@@ -1,0 +1,22 @@
+{
+  "test": {
+    "chamfer_mean": 0.3639246829195569,
+    "mod_h_mean": 0.39766204761118085,
+    "n_samples": 19200
+  },
+  "best_val": {
+    "chamfer_mean": 0.3266498581463335,
+    "mod_h_mean": 0.29069919937264,
+    "n_samples": 4009
+  },
+  "config": {
+    "n_stages": 1,
+    "lr": 7e-05,
+    "batch_size": 12,
+    "epochs": 30,
+    "pretrained": "logs/v2_mag_phase/best.pt",
+    "window_size": 8,
+    "n_pts": 2048,
+    "total_params": 1503111
+  }
+}
