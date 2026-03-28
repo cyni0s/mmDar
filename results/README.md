@@ -367,6 +367,51 @@ The v2 model must match 12× denser GT at higher spatial precision. Phase 7 will
 - **torch.cdist (float32) gives ~2% lower values than scipy.cdist (float64).** For relative comparisons this is fine, but don't mix the two when comparing absolute numbers.
 - **Sequential pilot subsets are biased.** The first 2000 samples (trajectories 117, 124) gave median Chamfer 0.149 vs full-set 0.289. Use stratified or random sampling for pilots.
 
+## Phase 7: GT Standardization — Eval Pipeline Mismatch (Negative Result)
+
+**Hypothesis:** The mod-H gap (0.429 vs 0.189) is caused by eval pipeline mismatch — the v2 model is scored against 8192 fine-grained continuous GT points while the baseline is scored against ~665 coarse grid-quantized points.
+
+**Method:** Ran v2 temporal xattn (N=8) inference on full test set (19,200 samples), evaluated predictions under 4 GT conditions. Grid quantization bins XY points into the baseline's 256×512 Cartesian eval grid (same constants from eval/eval_pointcloud.py).
+
+**Script:** `v2/eval/gt_standardize.py`
+
+### Results (mean over 19,200 test samples)
+
+| Condition | Description | Chamfer (m) | Mod-H (m) | nn_p→g | nn_g→p | N_pred | N_gt |
+|-----------|------------|-------------|-----------|--------|--------|--------|------|
+| Control | 8192 cont vs 8192 cont | 0.295 | 0.429 | 0.322 | 0.062 | 8192 | 8192 |
+| A | 8192 cont vs FPS(N_i) cont | 0.311 | 0.434 | 0.325 | 0.079 | 8192 | 640 |
+| B | 8192 cont vs grid-quant GT | 0.308 | 0.428 | 0.318 | 0.078 | 8192 | 640 |
+| C | grid-quant pred vs grid-quant GT | 0.496 | 0.578 | 0.590 | 0.079 | 1594 | 640 |
+
+### Result: Hypothesis FALSIFIED — the gap is real model quality
+
+- **A ≈ Control** (mod-H 0.434 vs 0.429): GT density alone doesn't explain the gap
+- **B ≈ Control** (mod-H 0.428 vs 0.429): GT density + quantization doesn't explain it either
+- **C >> Control** (mod-H 0.578 vs 0.429): Grid-quantizing v2 predictions makes it WORSE — loses 80% of points (8192 → 1594) and sub-grid precision
+
+### Root cause: v2 decoder has poor point placement precision
+
+Directed terms reveal the asymmetry:
+
+| Model | nn_pred→gt (precision) | nn_gt→pred (coverage) | mod-H |
+|-------|----------------------|---------------------|-------|
+| v2 temporal xattn | 0.322 | 0.062 | 0.429 |
+| Baseline (Phase 6) | 0.180 | 0.084 | 0.186 |
+
+- **v2 has better coverage** (0.062 vs 0.084) — more GT points have a nearby prediction
+- **v2 has much worse precision** (0.322 vs 0.180) — many predictions land in wrong locations
+- **mod-H is dominated by precision** in both models (max of the two directions)
+
+The v2 decoder places 8192 points but many are inaccurate. The baseline's ~2874 points from occupancy thresholding are more conservatively placed — fewer points but mostly in the right spots.
+
+### Lessons
+
+- **The mod-H gap is a genuine model quality difference, not an eval artifact.** Five experiments tried to explain it away (angular topology, physics losses, temporal fusion, fixed cardinality, GT mismatch). All failed. The decoder's point placement precision is the actual bottleneck.
+- **Coverage ≠ precision.** The v2 model achieves excellent coverage (0.062 nn_g→p, better than baseline's 0.084) but pays for it with poor precision (0.322 nn_p→g). Chamfer averages both directions and looks good; mod-H takes the max and exposes the imbalance.
+- **Occupancy thresholding is a strong inductive bias.** The baseline's sigmoid + threshold naturally produces conservative, precise point clouds. The v2 point decoder must learn this precision from scratch via Chamfer loss, which optimizes the mean, not the max.
+- **Confidence-based filtering is the obvious next step.** The v2 model outputs per-point confidence logits. Filtering low-confidence (imprecise) points should improve precision at the cost of some coverage — potentially the right trade-off for mod-H.
+
 ## Future Experiments
 
 Ideas to test separately from the main architectural ablation. Each should be isolated to avoid confounding.
