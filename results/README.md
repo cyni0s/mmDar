@@ -460,7 +460,19 @@ The beamformer is an **information bottleneck, not an enhancement**. 8 antennas 
 
 *Full test set (18,575 samples), scipy.cdist, legacy_cartesian mode.*
 
-A finer float-threshold sweep is pending to find the exact optimum between threshold 1 and 2 (sigmoid space 0.004–0.008).
+### Fine float-threshold sweep (full test set, 18,575 samples)
+
+| Threshold (sigmoid) | Chamfer (med) | mod-H (med) | Points |
+|---------------------|--------------|-------------|--------|
+| 0.004 (≈ default) | 0.296 | 0.239 | 4754 |
+| 0.006 | **0.289** | 0.212 | 3697 |
+| 0.008 | 0.292 | 0.189 | 3012 |
+| **0.010** | **0.298** | **0.175** | **2529** |
+| 0.012 | 0.309 | 0.175 | 2173 |
+| 0.015 | 0.323 | 0.180 | 1793 |
+| 0.020 | 0.343 | 0.211 | 1399 |
+
+**Optimal: sigmoid threshold 0.010 → Chamfer 0.298 (+1%), mod-H 0.175 (-7.5%).** The baseline model already has the information for better mod-H — it just needs a higher operating point on the precision-recall curve. The default threshold is too permissive, letting weak false positives through that hurt precision.
 
 ### Lessons
 - **Always sweep the occupancy threshold.** The default threshold=1 was never optimized for mod-H. A trivial change (1→2) gives the first mod-H improvement after 8 phases of architectural experiments.
