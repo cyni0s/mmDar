@@ -194,7 +194,7 @@ def run_experiment(args):
     torch.manual_seed(SEED)
 
     # Load v2 temporal model
-    model = TemporalMagPhaseFusion(N_az=256, bridge_out_ch=128, max_lag=16)
+    model = TemporalMagPhaseFusion(N_az=256, bridge_out_ch=128, max_lag=8)
     ckpt = torch.load(args.checkpoint, map_location=device, weights_only=False)
     if isinstance(ckpt, dict) and 'model_state_dict' in ckpt:
         model.load_state_dict(ckpt['model_state_dict'])
