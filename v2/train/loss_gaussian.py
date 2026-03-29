@@ -63,9 +63,10 @@ def hungarian_nll_loss(
         dp = -delta[:, 0] * sin_phi + delta[:, 1] * cos_phi     # perp error
 
         # Heteroscedastic NLL: 0.5*(dr/σ_r)² + 0.5*(dp/σ_p)² + log(σ_r) + log(σ_p)
-        nll = 0.5 * (dr / matched_sr) ** 2 + \
-              0.5 * (dp / matched_sp) ** 2 + \
-              torch.log(matched_sr) + torch.log(matched_sp)
+        nll = 0.5 * (dr / matched_sr.clamp(min=1e-4)) ** 2 + \
+              0.5 * (dp / matched_sp.clamp(min=1e-4)) ** 2 + \
+              torch.log(matched_sr.clamp(min=1e-4)) + torch.log(matched_sp.clamp(min=1e-4))
+        nll = nll.clamp(max=100.0)  # prevent NaN from extreme values
         total_nll = total_nll + nll.mean()
 
         # Existence loss: matched = 1, unmatched = 0
