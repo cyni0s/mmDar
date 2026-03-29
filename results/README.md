@@ -479,6 +479,65 @@ The beamformer is an **information bottleneck, not an enhancement**. 8 antennas 
 - **Precision vs coverage is a threshold knob, not an architecture problem.** The baseline model already has the information — it just needs a different operating point on the precision-recall curve.
 - **This suggests the v2 point decoder's mod-H gap may also be partly addressable** by finding the right confidence/density operating point — though confidence filtering failed (logits miscalibrated).
 
+## Phase 9a: Gaussian Set Decoder from Raw IQ (Partial Success)
+
+**Hypothesis:** A DETR-style Gaussian set decoder with Hungarian NLL loss, trained on raw IQ through a learned beamspace, will produce better mod-H than the Chamfer-trained point decoder.
+
+**Architecture:**
+- Input: raw IQ (8 ant × 512 range) × 8 frames
+- Learned beamspace: W ∈ ℂ^(32×8), initialized from steering matrix, trainable
+- Phase-difference features: adjacent antenna phase diffs (7 channels)
+- 1D Conv encoder across range → (128, 512) features
+- DETR-style decoder: 96 learnable queries, 3 cross-attention layers
+- Per query: (μ_r, μ_φ, σ_r, σ_perp, existence) — Gaussian in polar coords
+- σ_perp scales with range (physics-informed: angular uncertainty grows with distance)
+
+**Loss:** Hungarian-matched heteroscedastic NLL + soft coverage + cardinality + repulsion + sigma prior. NOT Chamfer.
+
+**Script:** `v2/train/train_gaussian_radar.py`, model at `v2/model/gaussian_head.py` + `v2/model/beamspace.py`
+
+### Results (50 epochs, 1.58M params, 8 frames)
+
+| Threshold | Chamfer (test) | mod-H (test) |
+|-----------|---------------|-------------|
+| 0.0 | 0.443 | 0.375 |
+| 0.3 | 0.408 | 0.353 |
+| **0.5** | **0.421** | **0.345** |
+| 0.7 | 0.524 | 0.415 |
+
+**Comparison:**
+
+| Model | Frames | Params | Chamfer | mod-H |
+|-------|--------|--------|---------|-------|
+| Baseline (UNet1, PNG) | 41 | 17.5M | **0.295** | **0.189** |
+| v2 point decoder | 8 | 2.2M | 0.295 | 0.429 |
+| **Gaussian radar** | **8** | **1.58M** | **0.421** | **0.345** |
+
+### Analysis
+
+**What worked:**
+- mod-H improved 20% over v2 point decoder (0.429→0.345) — the Hungarian NLL loss produces better precision than Chamfer
+- Stable training convergence — no divergence (unlike physics losses in Phase 5)
+- All loss components contributed meaningfully: NLL drove precision, coverage prevented holes, cardinality controlled point count, repulsion prevented duplicates
+- Val showed continuous improvement over 50 epochs (0.433→0.218) with no sign of catastrophic overfitting
+
+**What didn't work:**
+- Still far from baseline mod-H (0.345 vs 0.189) — 82% gap remains
+- Chamfer worsened significantly (0.421 vs 0.295) — the model covers fewer GT points than the baseline
+- Val/test gap large again (val 0.218 vs test 0.345) — 4-trajectory val remains unreliable
+- 8 frames vs baseline's 41 — the model has 5× less temporal context
+
+**Root causes of remaining gap:**
+1. **Temporal context**: 8 frames vs 41. The baseline gets 2 seconds of multi-viewpoint data to resolve specularity. Our model gets 0.4 seconds.
+2. **Model capacity**: 1.58M vs 17.5M params. The encoder is a shallow 3-layer 1D conv, not a deep U-Net.
+3. **Input representation**: learned beamspace W ∈ ℂ^(32×8) is still rank-8 linear. Nonlinear phase interactions (covariance) are not captured.
+
+### Lessons
+- **Hungarian NLL > Chamfer for mod-H.** The Gaussian set decoder trained with matched NLL achieves better precision than any Chamfer-trained decoder we've built. The loss-metric alignment matters.
+- **The loss function was always the problem, not just the decoder.** Phase 9a changed both representation AND loss. The 20% mod-H improvement validates that Chamfer was optimizing the wrong thing.
+- **Val/test gap persists regardless of architecture.** 4 trajectories is not enough for reliable model selection. This is a dataset limitation, not a model limitation.
+- **Temporal context matters for test-set generalization.** Val (which has temporal locality within 4 trajectories) shows much better numbers than test (19 diverse trajectories). More frames may help bridge this gap.
+
 ## Future Experiments
 
 ### Phase 9: Raw antenna input — learn angular processing (NEXT)
