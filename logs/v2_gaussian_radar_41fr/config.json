@@ -1,0 +1,14 @@
+{
+  "fit_prototypes": false,
+  "train": true,
+  "lr": 0.0001,
+  "batch_size": 4,
+  "epochs": 50,
+  "window_size": 41,
+  "K": 96,
+  "N_beam": 32,
+  "log_dir": "logs/v2_gaussian_radar_41fr",
+  "processed_dir": "v2/data/processed",
+  "n_params": 4624389,
+  "K_prototypes": 64
+}

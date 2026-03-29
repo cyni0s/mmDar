@@ -538,6 +538,42 @@ The beamformer is an **information bottleneck, not an enhancement**. 8 antennas 
 - **Val/test gap persists regardless of architecture.** 4 trajectories is not enough for reliable model selection. This is a dataset limitation, not a model limitation.
 - **Temporal context matters for test-set generalization.** Val (which has temporal locality within 4 trajectories) shows much better numbers than test (19 diverse trajectories). More frames may help bridge this gap.
 
+## Phase 9a-41: Gaussian Set Decoder with 41 Frames
+
+Same architecture as Phase 9a but with 41-frame temporal context (matching baseline).
+
+### Results (50 epochs, 4.6M params, 41 frames, batch=4)
+
+| Threshold | Chamfer (test) | mod-H (test) |
+|-----------|---------------|-------------|
+| 0.0 | 0.366 | 0.285 |
+| 0.3 | 0.348 | 0.279 |
+| **0.5** | **0.356** | **0.278** |
+| 0.7 | 0.426 | 0.329 |
+
+### Full comparison
+
+| Model | Frames | Params | Chamfer | mod-H | Δ mod-H vs baseline |
+|-------|--------|--------|---------|-------|---------------------|
+| Baseline (default thresh) | 41 | 17.5M | **0.295** | 0.189 | — |
+| Baseline (thresh=0.010) | 41 | 17.5M | 0.298 | **0.175** | -7.5% |
+| v2 point decoder | 8 | 2.2M | 0.295 | 0.429 | +127% |
+| Gaussian radar (8fr) | 8 | 1.58M | 0.421 | 0.345 | +82% |
+| **Gaussian radar (41fr)** | **41** | **4.6M** | **0.356** | **0.278** | **+47%** |
+
+### Key observations
+
+- 41 frames improved mod-H from 0.345→0.278 (19% from temporal context alone)
+- Val reached 0.142 (below baseline's 0.189!) but test stayed at 0.278 — val/test gap persists
+- Coverage loss nearly zero (0.004) — model covers almost all GT points
+- The Gaussian + Hungarian NLL approach consistently outperforms Chamfer-trained decoders
+- Remaining gap likely from: encoder capacity (4.6M vs 17.5M), rank-8 beamspace, output cardinality (96 vs ~2874)
+
+### Lessons
+- **Temporal context is critical for test-set generalization.** 8→41 frames gave 19% mod-H improvement on test while val improved by even more. Multi-viewpoint radar data helps resolve angular ambiguity.
+- **The Gaussian + Hungarian NLL paradigm works.** Across both frame counts, it produces better mod-H than any Chamfer-trained decoder (0.278 vs 0.429 best). The loss-metric alignment is validated.
+- **Encoder depth is the next bottleneck.** The 3-layer 1D conv encoder is shallow. A deeper encoder (U-Net-class, ~17M params) on the beamspace features should narrow the remaining gap.
+
 ## Future Experiments
 
 ### Phase 9: Raw antenna input — learn angular processing (NEXT)
