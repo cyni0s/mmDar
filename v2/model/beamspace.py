@@ -58,16 +58,14 @@ class LearnedBeamspace(nn.Module):
         x_real = x.real.float()  # (B, 8, R)
         x_imag = x.imag.float()  # (B, 8, R)
 
-        # (N_beam, 8) × (B, 8, R) → (B, N_beam, R)
-        bf_real = torch.einsum('ba,bar->br', self.W_real, x_real) - \
-                  torch.einsum('ba,bar->br', self.W_imag, x_imag)
-        bf_imag = torch.einsum('ba,bar->br', self.W_real, x_imag) + \
-                  torch.einsum('ba,bar->br', self.W_imag, x_real)
+        # W: (N_beam, N_ant), x: (B, N_ant, R) → (B, N_beam, R)
+        # Use 'na,bar->bnr' to avoid subscript collision
+        bf_real = torch.einsum('na,bar->bnr', self.W_real, x_real) - \
+                  torch.einsum('na,bar->bnr', self.W_imag, x_imag)
+        bf_imag = torch.einsum('na,bar->bnr', self.W_real, x_imag) + \
+                  torch.einsum('na,bar->bnr', self.W_imag, x_real)
 
-        # Reshape to (B, N_beam, R)
         B, R = x_real.shape[0], x_real.shape[2]
-        bf_real = bf_real.view(B, self.N_beam, R)
-        bf_imag = bf_imag.view(B, self.N_beam, R)
 
         log_pow = torch.log(bf_real ** 2 + bf_imag ** 2 + 1e-6)
 
