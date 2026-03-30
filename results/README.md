@@ -617,3 +617,17 @@ Ideas to test separately from the main architectural ablation. Each should be is
 - **Batched inference**: current inference uses batch=1, massively underutilizing the GPU. Inference batch size does not affect outputs (no gradients, GroupNorm is batch-invariant). Bumping to batch=16-32 should cut inference from ~9 min to ~1-2 min per checkpoint.
 - **Multi-config runner**: each experiment currently launches a fresh Docker container and reloads all data (~15 min overhead). A single script that loads data once and trains multiple configs sequentially would eliminate this repeated cost.
 - **Curriculum sequence length**: train with increasing T (8→16→41) rather than fixed truncated BPTT. May capture longer-range dependencies that T=8 misses.
+
+## Phase 9a-deep: Deep 1D Encoder (Negative Result)
+
+Same as Phase 9a-41 but with 8-block dilated residual 1D encoder (5.3M params vs 4.6M).
+
+| Threshold | Chamfer (test) | mod-H (test) |
+|-----------|---------------|-------------|
+| 0.0 | 0.379 | 0.306 |
+| 0.3 | 0.362 | 0.301 |
+| 0.5 | 0.369 | 0.304 |
+| 0.7 | 0.411 | 0.335 |
+
+**Result: deeper 1D encoder makes test WORSE (0.301 vs 0.278) despite much better val (0.137 vs 0.218).** The deeper model overfits the 4 val trajectories without learning generalizable features. More 1D depth is not the answer — the 2D spatial structure (which the physics-first model preserves) is what's needed for generalization.
+
