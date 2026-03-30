@@ -479,6 +479,28 @@ The beamformer is an **information bottleneck, not an enhancement**. 8 antennas 
 - **Precision vs coverage is a threshold knob, not an architecture problem.** The baseline model already has the information — it just needs a different operating point on the precision-recall curve.
 - **This suggests the v2 point decoder's mod-H gap may also be partly addressable** by finding the right confidence/density operating point — though confidence filtering failed (logits miscalibrated).
 
+## Other Experiments (Post-Phase 8)
+
+### Confidence filtering on v2 point decoder (FAILED)
+
+Swept sigmoid thresholds [0.3–0.95] and top-K [500–6000] on the existing v2 temporal model's confidence logits. **All filtering made metrics WORSE** — mod-H went from 0.25 to 2.3+. The confidence logits are miscalibrated: removing "low-confidence" points actually removes good predictions. The BCE training target (within 0.3m = 1, else 0) is a poor proxy for point quality.
+
+### 2048-point decoder (marginal)
+
+Trained v2 temporal model with only 1 densification stage (2048 points instead of 8192). Test mod-H 0.398 vs 0.429 (7% improvement), but Chamfer worsened 0.295→0.364. Fewer points with Chamfer loss hurts coverage without helping precision — the loss still optimizes mean NN distance.
+
+### Gaussian oracle test (representation confirmed)
+
+Fit K-Means centers to lidar GT point clouds (no neural network). Measures the CEILING of the Gaussian representation:
+
+| K centers | Chamfer | mod-H |
+|-----------|---------|-------|
+| 32 | 0.057 | 0.068 |
+| 64 | 0.031 | **0.034** |
+| 128 | 0.018 | 0.016 |
+
+**64 well-placed centers give mod-H 0.034 — 5.6× better than baseline.** The representation has massive headroom. The challenge is predicting good positions from radar.
+
 ## Phase 9a: Gaussian Set Decoder from Raw IQ (Partial Success)
 
 **Hypothesis:** A DETR-style Gaussian set decoder with Hungarian NLL loss, trained on raw IQ through a learned beamspace, will produce better mod-H than the Chamfer-trained point decoder.
