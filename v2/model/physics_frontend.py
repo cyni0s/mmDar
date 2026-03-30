@@ -1,14 +1,13 @@
-"""Physics-first 2D frontend: classical FFT beamformer + light 2D encoder.
+"""Physics-first 2D frontend: classical FFT beamformer + deep 2D encoder.
 
 Uses classical signal processing (FFT) to produce a 2D range-azimuth map,
-then a light 2D convolutional encoder extracts spatial features while
-preserving the 2D angular structure. Finally collapses to per-range-bin
-tokens for the DETR Gaussian decoder.
+then a deep 2D convolutional encoder extracts spatial features while
+PRESERVING the 2D angular structure all the way to the DETR decoder.
 
-The network learns the DELTA on top of classical physics, not physics itself.
+No 1D collapse — the DETR queries attend to 2D spatial tokens.
 
 Input:  (B, T, 8, R) complex64 — T frames of 8 antennas × R range bins
-Output: (B, out_ch, R) float32 — per-range-bin features for Gaussian decoder
+Output: (B, N_tokens, C) float32 — 2D spatial tokens for DETR cross-attention
 """
 
 import torch
@@ -19,11 +18,8 @@ import torch.nn.functional as F
 class ClassicalFFTFrontend(nn.Module):
     """Fixed FFT beamformer — no trainable parameters.
 
-    Per frame: (8, R) complex → FFT along antennas → (N_az, R) complex
-    → [magnitude, log_power] → (2, N_az, R) float
-
     Args:
-        N_az: number of azimuth bins (default 64 — matched to sensor resolution)
+        N_az: number of azimuth bins (default 64)
     """
 
     def __init__(self, N_az: int = 64):
@@ -39,183 +35,178 @@ class ClassicalFFTFrontend(nn.Module):
         Returns:
             (B, 2, N_az, R) float32 — [magnitude, log_power]
         """
-        # FFT along antenna dim, zero-pad to N_az
-        spectrum = torch.fft.fft(x, n=self.N_az, dim=1)  # (B, N_az, R) complex
-        spectrum = torch.fft.fftshift(spectrum, dim=1)     # DC at center
-
-        mag = spectrum.abs().float()                        # (B, N_az, R)
-        log_pow = torch.log(mag ** 2 + 1e-6)              # (B, N_az, R)
-
-        return torch.stack([mag, log_pow], dim=1)          # (B, 2, N_az, R)
+        spectrum = torch.fft.fft(x, n=self.N_az, dim=1)
+        spectrum = torch.fft.fftshift(spectrum, dim=1)
+        mag = spectrum.abs().float()
+        log_pow = torch.log(mag ** 2 + 1e-6)
+        return torch.stack([mag, log_pow], dim=1)
 
 
-class Light2DEncoder(nn.Module):
-    """Light 2D convolutional encoder on range-azimuth maps.
+class ResBlock2d(nn.Module):
+    """Residual 2D conv block with GroupNorm + GELU."""
 
-    Preserves the 2D spatial structure (azimuth × range) through several
-    conv layers, then collapses azimuth to produce per-range-bin features.
+    def __init__(self, ch: int, dropout: float = 0.1):
+        super().__init__()
+        n_groups = min(16, ch)
+        self.net = nn.Sequential(
+            nn.Conv2d(ch, ch, 3, padding=1, bias=False),
+            nn.GroupNorm(n_groups, ch),
+            nn.GELU(),
+            nn.Dropout2d(dropout),
+            nn.Conv2d(ch, ch, 3, padding=1, bias=False),
+            nn.GroupNorm(n_groups, ch),
+        )
+        self.act = nn.GELU()
+
+    def forward(self, x):
+        return self.act(x + self.net(x))
+
+
+class DownBlock2d(nn.Module):
+    """Downsample 2x in both dims + ResBlock."""
+
+    def __init__(self, in_ch: int, out_ch: int, dropout: float = 0.1):
+        super().__init__()
+        n_groups = min(16, out_ch)
+        self.down = nn.Sequential(
+            nn.Conv2d(in_ch, out_ch, 3, stride=2, padding=1, bias=False),
+            nn.GroupNorm(n_groups, out_ch),
+            nn.GELU(),
+        )
+        self.res = ResBlock2d(out_ch, dropout)
+
+    def forward(self, x):
+        return self.res(self.down(x))
+
+
+class Deep2DEncoder(nn.Module):
+    """Deep 2D encoder that preserves spatial structure.
+
+    Progressively downsamples (az, range) while increasing channels:
+      (T*2, 64, 512) → (64, 32, 256) → (128, 16, 128) → (192, 8, 64)
+
+    Output: flattened spatial tokens (B, 8*64, 192) = (B, 512, 192)
+    Each token retains its 2D position via learned positional encoding.
 
     Args:
-        in_ch: input channels (T * 2 for mag + logpow per frame)
-        mid_ch: intermediate 2D conv channels (default 64)
-        out_ch: output per-range-bin features after azimuth collapse (default 128)
-        N_az: azimuth bins (default 64)
+        in_ch: input channels (T * 2)
+        channels: list of channel widths per level (default [64, 128, 192])
+        dropout: dropout rate (default 0.1)
     """
 
-    def __init__(self, in_ch: int, mid_ch: int = 64, out_ch: int = 128,
-                 N_az: int = 64):
+    def __init__(self, in_ch: int, channels: list = None,
+                 dropout: float = 0.1):
         super().__init__()
-        self.N_az = N_az
+        if channels is None:
+            channels = [64, 128, 192]
 
-        # 2D conv blocks on (azimuth × range) — preserves both dimensions
-        self.conv2d = nn.Sequential(
-            nn.Conv2d(in_ch, mid_ch, kernel_size=3, padding=1, bias=False),
-            nn.GroupNorm(min(16, mid_ch), mid_ch),
-            nn.GELU(),
-            nn.Conv2d(mid_ch, mid_ch, kernel_size=3, padding=1, bias=False),
-            nn.GroupNorm(min(16, mid_ch), mid_ch),
-            nn.GELU(),
-            nn.Conv2d(mid_ch, mid_ch, kernel_size=3, padding=1, bias=False),
-            nn.GroupNorm(min(16, mid_ch), mid_ch),
+        # Input projection (no downsampling)
+        n_groups = min(16, channels[0])
+        self.input_proj = nn.Sequential(
+            nn.Conv2d(in_ch, channels[0], 3, padding=1, bias=False),
+            nn.GroupNorm(n_groups, channels[0]),
             nn.GELU(),
         )
+        self.input_res = ResBlock2d(channels[0], dropout)
 
-        # Collapse azimuth to per-range features
-        # After 2D conv: (B, mid_ch, N_az, R)
-        # Collapse: (B, mid_ch * N_az, R) via reshape, then project down
-        # But mid_ch * N_az = 64 * 64 = 4096 — too large for direct projection
-        # Instead: use adaptive pooling along azimuth → (B, mid_ch, pool_az, R)
-        # then flatten
-        self.pool_az = 8  # pool 64 azimuth bins down to 8
-        self.collapse = nn.Sequential(
-            nn.Conv1d(mid_ch * self.pool_az, out_ch, kernel_size=1, bias=False),
-            nn.GroupNorm(min(16, out_ch), out_ch),
-            nn.GELU(),
-        )
+        # Downsampling levels
+        self.downs = nn.ModuleList()
+        for i in range(1, len(channels)):
+            self.downs.append(DownBlock2d(channels[i-1], channels[i], dropout))
+
+        self.out_ch = channels[-1]
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """Encode 2D range-azimuth features to per-range tokens.
+        """Encode 2D feature map to spatial tokens.
 
         Args:
-            x: (B, C, N_az, R) float32
+            x: (B, in_ch, H, W) float32
 
         Returns:
-            (B, out_ch, R) float32 — per-range-bin features
+            (B, N_tokens, out_ch) float32 — flattened 2D spatial tokens
         """
-        B, C, A, R = x.shape
-
-        # 2D spatial processing
-        feat_2d = self.conv2d(x)  # (B, mid_ch, N_az, R)
-
-        # Adaptive pool along azimuth: (B, mid_ch, pool_az, R)
-        feat_pooled = F.adaptive_avg_pool2d(feat_2d, (self.pool_az, R))
-
-        # Reshape: (B, mid_ch * pool_az, R)
-        feat_1d = feat_pooled.view(B, -1, R)
-
-        # Project to output dim
-        return self.collapse(feat_1d)  # (B, out_ch, R)
+        x = self.input_res(self.input_proj(x))
+        for down in self.downs:
+            x = down(x)
+        # x: (B, out_ch, H', W')
+        B, C, H, W = x.shape
+        # Flatten spatial dims: (B, C, H*W) → (B, H*W, C)
+        return x.view(B, C, H * W).permute(0, 2, 1)
 
 
 class PhysicsFirstEncoder(nn.Module):
-    """Full physics-first frontend: classical FFT → 2D encoder → 1D deep encoder.
+    """Classical FFT → stack frames → deep 2D encoder → 2D spatial tokens.
 
-    Combines:
-    1. Classical FFT beamformer (fixed, no learning) → 2D range-azimuth map
-    2. Light 2D conv encoder → preserves angular patterns
-    3. Azimuth collapse → per-range-bin tokens
-    4. Deep 1D dilated residual encoder → range context
+    No 1D collapse. The DETR decoder attends to 2D spatial tokens that
+    preserve both azimuth and range structure.
 
     Args:
         N_az: FFT azimuth bins (default 64)
         T: temporal frames (default 41)
-        mid_2d_ch: 2D encoder channels (default 64)
-        hidden_1d_ch: 1D encoder channels (default 192)
-        out_ch: final output channels for DETR decoder (default 128)
-        n_blocks_1d: number of 1D dilated residual blocks (default 8)
+        channels_2d: channel widths per encoder level (default [64, 128, 192])
         dropout: dropout rate (default 0.1)
     """
 
-    def __init__(self, N_az: int = 64, T: int = 41, mid_2d_ch: int = 64,
-                 hidden_1d_ch: int = 192, out_ch: int = 128,
-                 n_blocks_1d: int = 8, dropout: float = 0.1):
+    def __init__(self, N_az: int = 64, T: int = 41,
+                 channels_2d: list = None, dropout: float = 0.1):
         super().__init__()
         self.T = T
+        self.N_az = N_az
         self.fft = ClassicalFFTFrontend(N_az=N_az)
 
-        # 2D encoder: T*2 input channels (mag + logpow per frame)
-        in_2d_ch = T * 2
-        self.encoder_2d = Light2DEncoder(
-            in_ch=in_2d_ch, mid_ch=mid_2d_ch, out_ch=out_ch, N_az=N_az,
-        )
+        if channels_2d is None:
+            channels_2d = [64, 128, 192]
 
-        # Deep 1D encoder on top (reuse DilatedResBlock1d from beamspace.py)
-        from v2.model.beamspace import DilatedResBlock1d
-
-        n_groups = min(32, hidden_1d_ch)
-        self.input_proj = nn.Sequential(
-            nn.Conv1d(out_ch, hidden_1d_ch, kernel_size=7, padding=3, bias=False),
-            nn.GroupNorm(n_groups, hidden_1d_ch),
-            nn.GELU(),
-        )
-
-        dilations = [1, 2, 4, 8, 1, 2, 4, 8][:n_blocks_1d]
-        self.blocks_1d = nn.ModuleList([
-            DilatedResBlock1d(hidden_1d_ch, d, kernel_size=5, dropout=dropout)
-            for d in dilations
-        ])
-
-        self.output_proj = nn.Conv1d(hidden_1d_ch, out_ch, 1)
+        in_ch = T * 2  # mag + logpow per frame
+        self.encoder_2d = Deep2DEncoder(in_ch, channels_2d, dropout)
+        self.out_ch = self.encoder_2d.out_ch
 
     def forward(self, x_seq: torch.Tensor) -> torch.Tensor:
-        """Encode multi-frame raw IQ to per-range-bin features.
+        """Encode multi-frame raw IQ to 2D spatial tokens.
 
         Args:
             x_seq: (B, T, 8, R) complex64
 
         Returns:
-            (B, out_ch, R) float32
+            (B, N_tokens, out_ch) float32 — 2D spatial tokens
+            With default settings: (B, 512, 192) tokens
+            (from 64az×512r → 32×256 → 16×128 → 8×64 = 512 tokens)
         """
         B, T, A, R = x_seq.shape
         assert T == self.T, f"Expected T={self.T}, got {T}"
 
-        # Step 1: classical FFT per frame → stack as channels
+        # Classical FFT per frame → stack as channels
         frame_feats = []
         for t in range(T):
             frame_feats.append(self.fft(x_seq[:, t]))  # (B, 2, N_az, R)
         stacked_2d = torch.cat(frame_feats, dim=1)     # (B, T*2, N_az, R)
 
-        # Step 2: 2D encoder → collapse azimuth → per-range tokens
-        range_tokens = self.encoder_2d(stacked_2d)      # (B, out_ch, R)
-
-        # Step 3: deep 1D encoder for range context
-        x = self.input_proj(range_tokens)
-        for block in self.blocks_1d:
-            x = block(x)
-        return self.output_proj(x)                       # (B, out_ch, R)
+        # Deep 2D encoder → spatial tokens
+        return self.encoder_2d(stacked_2d)              # (B, N_tokens, out_ch)
 
 
 class PhysicsGaussianModel(nn.Module):
     """Full model: PhysicsFirstEncoder → GaussianSetDecoder.
 
-    Classical FFT (fixed) → 2D conv (light) → 1D encoder (deep) → DETR → Gaussians.
+    Classical FFT (fixed) → 2D encoder (deep, preserves structure) → DETR → Gaussians.
+
+    The DETR decoder attends to 2D spatial tokens, not 1D range tokens.
 
     Args:
         N_az: FFT azimuth bins (default 64)
         T: temporal frames (default 41)
         K: Gaussian queries (default 96)
-        out_ch: encoder output / decoder input channels (default 128)
     """
 
-    def __init__(self, N_az=64, T=41, K=96, out_ch=128):
+    def __init__(self, N_az=64, T=41, K=96):
         super().__init__()
-        self.encoder = PhysicsFirstEncoder(N_az=N_az, T=T, out_ch=out_ch)
+        self.encoder = PhysicsFirstEncoder(N_az=N_az, T=T)
         from v2.model.gaussian_head import GaussianSetDecoder
-        self.decoder = GaussianSetDecoder(K=K, feat_ch=out_ch)
+        self.decoder = GaussianSetDecoder(K=K, feat_ch=self.encoder.out_ch)
 
     def forward(self, x_seq: torch.Tensor) -> dict:
-        features = self.encoder(x_seq)
-        return self.decoder(features)
+        tokens = self.encoder(x_seq)        # (B, N_tokens, C)
+        return self.decoder(tokens)
 
     def predict_points(self, x_seq: torch.Tensor,
                        threshold: float = 0.0) -> list[torch.Tensor]:

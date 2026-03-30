@@ -77,7 +77,8 @@ class GaussianSetDecoder(nn.Module):
         """Predict Gaussian set from spatial features.
 
         Args:
-            features: (B, C, R) float32 from BeamspaceEncoder
+            features: (B, C, R) float32 from 1D encoder (BeamspaceEncoder)
+                   OR (B, N_tokens, C) float32 from 2D encoder (PhysicsFirstEncoder)
 
         Returns:
             dict with:
@@ -88,11 +89,19 @@ class GaussianSetDecoder(nn.Module):
                 'existence': (B, K) existence logits (pre-sigmoid)
                 'mu_xy':    (B, K, 2) Cartesian centers for eval
         """
-        B, C, R = features.shape
+        if features.dim() == 3 and features.shape[1] != features.shape[2]:
+            # Detect format: if shape is (B, C, R) with C < R → 1D encoder format
+            # If shape is (B, N_tokens, C) with N_tokens > C → 2D encoder format
+            if features.shape[1] < features.shape[2]:
+                # (B, C, R) → permute to (B, R, C) for projection
+                features = features.permute(0, 2, 1)
+            # else: already (B, N_tokens, C)
 
-        # Project features: (B, R, d_model)
-        feat_tokens = self.feat_proj(features.permute(0, 2, 1))  # (B, R, d)
-        feat_tokens = feat_tokens + self.range_pe[:, :R, :]
+        B, N, C = features.shape
+
+        # Project features: (B, N, d_model)
+        feat_tokens = self.feat_proj(features)  # (B, N, d)
+        feat_tokens = feat_tokens + self.range_pe[:, :N, :]
 
         # Expand queries: (B, K, d_model)
         queries = self.queries.unsqueeze(0).expand(B, -1, -1)
