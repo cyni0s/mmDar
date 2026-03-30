@@ -79,36 +79,68 @@ class LearnedBeamspace(nn.Module):
         return features
 
 
+class DilatedResBlock1d(nn.Module):
+    """Residual block with dilated Conv1d + GroupNorm + GELU + dropout."""
+
+    def __init__(self, ch: int, dilation: int = 1, kernel_size: int = 5,
+                 dropout: float = 0.1):
+        super().__init__()
+        padding = dilation * (kernel_size - 1) // 2
+        n_groups = min(32, ch)
+        self.net = nn.Sequential(
+            nn.Conv1d(ch, ch, kernel_size, padding=padding, dilation=dilation, bias=False),
+            nn.GroupNorm(n_groups, ch),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Conv1d(ch, ch, 1, bias=False),
+            nn.GroupNorm(n_groups, ch),
+        )
+        self.act = nn.GELU()
+
+    def forward(self, x):
+        return self.act(x + self.net(x))
+
+
 class BeamspaceEncoder(nn.Module):
-    """Full frontend: beamspace + temporal stacking + 1D conv encoder.
+    """Full frontend: beamspace + temporal stacking + deep dilated 1D encoder.
 
     Processes T frames through LearnedBeamspace, stacks temporally,
-    then applies 1D convolutions across range for spatial context.
+    then applies 8-block residual dilated 1D convolutions across range.
 
     Args:
         N_beam: beamspace bins (default 32)
         T: number of temporal frames (default 8)
-        hidden_ch: encoder hidden channels (default 128)
+        hidden_ch: encoder hidden channels (default 192)
+        out_ch: output channels for decoder (default 128)
+        n_blocks: number of residual blocks (default 8)
+        dropout: dropout rate (default 0.1)
     """
 
-    def __init__(self, N_beam: int = 32, T: int = 8, hidden_ch: int = 128):
+    def __init__(self, N_beam: int = 32, T: int = 8, hidden_ch: int = 192,
+                 out_ch: int = 128, n_blocks: int = 8, dropout: float = 0.1):
         super().__init__()
         self.beamspace = LearnedBeamspace(N_beam=N_beam)
         self.T = T
 
         in_ch = self.beamspace.feat_dim * T  # all frames stacked as channels
 
-        self.encoder = nn.Sequential(
-            nn.Conv1d(in_ch, hidden_ch, kernel_size=7, padding=3),
-            nn.BatchNorm1d(hidden_ch),
-            nn.ReLU(inplace=True),
-            nn.Conv1d(hidden_ch, hidden_ch, kernel_size=5, padding=2),
-            nn.BatchNorm1d(hidden_ch),
-            nn.ReLU(inplace=True),
-            nn.Conv1d(hidden_ch, hidden_ch, kernel_size=3, padding=1),
-            nn.BatchNorm1d(hidden_ch),
-            nn.ReLU(inplace=True),
+        # Input projection
+        n_groups = min(32, hidden_ch)
+        self.input_proj = nn.Sequential(
+            nn.Conv1d(in_ch, hidden_ch, kernel_size=7, padding=3, bias=False),
+            nn.GroupNorm(n_groups, hidden_ch),
+            nn.GELU(),
         )
+
+        # 8-block residual dilated encoder
+        dilations = [1, 2, 4, 8, 1, 2, 4, 8][:n_blocks]
+        self.blocks = nn.ModuleList([
+            DilatedResBlock1d(hidden_ch, d, kernel_size=5, dropout=dropout)
+            for d in dilations
+        ])
+
+        # Output projection to decoder dimension
+        self.output_proj = nn.Conv1d(hidden_ch, out_ch, 1)
 
     def forward(self, x_seq: torch.Tensor) -> torch.Tensor:
         """Encode multi-frame raw IQ to spatial features.
@@ -130,5 +162,8 @@ class BeamspaceEncoder(nn.Module):
         # Stack temporally: (B, T * feat_dim, R)
         stacked = torch.cat(frame_feats, dim=1)
 
-        # Encode with 1D convs across range
-        return self.encoder(stacked)
+        # Deep dilated 1D encoder
+        x = self.input_proj(stacked)
+        for block in self.blocks:
+            x = block(x)
+        return self.output_proj(x)
