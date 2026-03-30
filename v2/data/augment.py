@@ -1,6 +1,6 @@
 """Physically valid data augmentation for FMCW radar IQ.
 
-Three augmentations (Codex-reviewed, physics-validated):
+Three augmentations (physics-validated):
 
 1. Horizontal flip: reverse antenna order → mirror scene in azimuth
    - Exact for symmetric ULA at λ/2 spacing
@@ -87,10 +87,14 @@ def temporal_mask(radar: torch.Tensor, n_drop_min: int = 2,
         Masked radar (same shape)
     """
     T = radar.shape[0]
-    if T <= 1:
+    if T <= 2:
         return radar
 
-    n_drop = torch.randint(n_drop_min, min(n_drop_max + 1, T), (1,)).item()
+    max_droppable = min(n_drop_max, T - 1)
+    if max_droppable < n_drop_min:
+        return radar
+
+    n_drop = torch.randint(n_drop_min, max_droppable + 1, (1,)).item()
     # Select random past frames to drop (not the last frame)
     drop_idx = torch.randperm(T - 1)[:n_drop]
 

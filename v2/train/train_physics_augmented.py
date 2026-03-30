@@ -126,6 +126,9 @@ def eval_per_trajectory(model, processed_dir, traj_ids, device, window_size=41,
                 gt_xy = lidar[0, :, :2].to(device)
                 pred = points[0]
                 if pred.shape[0] < 2:
+                    # Penalize empty predictions with max distance
+                    cd_list.append(10.8)  # RMAX as penalty
+                    mh_list.append(10.8)
                     continue
                 cd_list.append(_chamfer_torch(pred, gt_xy))
                 mh_list.append(_mod_hausdorff_torch(pred, gt_xy))
