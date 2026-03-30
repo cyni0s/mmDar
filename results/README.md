@@ -594,18 +594,25 @@ Same architecture as Phase 9a but with 41-frame temporal context (matching basel
 ### Lessons
 - **Temporal context is critical for test-set generalization.** 8→41 frames gave 19% mod-H improvement on test while val improved by even more. Multi-viewpoint radar data helps resolve angular ambiguity.
 - **The Gaussian + Hungarian NLL paradigm works.** Across both frame counts, it produces better mod-H than any Chamfer-trained decoder (0.278 vs 0.429 best). The loss-metric alignment is validated.
-- **Encoder depth is the next bottleneck.** The 3-layer 1D conv encoder is shallow. A deeper encoder (U-Net-class, ~17M params) on the beamspace features should narrow the remaining gap.
+- ~~**Encoder depth is the next bottleneck.**~~ DISPROVEN — deeper 1D encoder (Phase 9a-deep) improved val 0.137 but WORSENED test 0.301. The bottleneck is the 1D representation and the val/test gap, not depth.
+- **The val/test gap is trajectory-level domain overfitting.** With 4 val trajectories, deeper models memorize val-specific patterns. Fix: expand val set, add data augmentation, score per-trajectory median.
+
+## In Progress: Physics-First 2D Gaussian Model
+
+Classical FFT (fixed, 64 az bins) → deep 2D encoder (preserves azimuth×range structure) → DETR decoder → Gaussians. Key change: uses physics as input instead of re-learning FFT, and keeps 2D spatial structure throughout (no 1D collapse). 3.1M params, 41 frames. Code: `v2/model/physics_frontend.py`, `v2/train/train_physics_gaussian.py`.
 
 ## Future Experiments
 
-### Phase 9: Raw antenna input — learn angular processing (NEXT)
-Skip the beamformer entirely. Feed raw 8-antenna complex IQ per range bin directly to a learned angular processing module. The network must learn to extract angular information from phase relationships across antennas — not from a pre-blurred spatial spectrum. Output: polar occupancy with variable-cardinality thresholding. References: ADC-SR (CVPR 2023), SR-SPECNet (2024), Radar Fields (SIGGRAPH 2024). This is the actual paradigm shift — all phases 3-8 share the same beamformer bottleneck.
+### Data augmentation + val split expansion (NEXT)
+Root cause of val/test gap: trajectory-level domain overfitting with only 4 val trajectories. Planned fixes:
+1. Expand val from 4→8 trajectories (or grouped 5-fold CV by trajectory)
+2. Add physically valid augmentation: horizontal flip (reverse antenna order + flip lidar azimuth), complex Gaussian noise (SNR 15-25 dB), temporal frame masking (drop 2-6 past frames)
+3. Per-trajectory median mod-H for model selection (not frame-average)
+4. Trajectory-balanced sampling (don't let long easy trajectories dominate)
 
 ### Other future experiments
 
-Ideas to test separately from the main architectural ablation. Each should be isolated to avoid confounding.
-
-- **Data augmentation**: random horizontal flip, intensity jitter, azimuth noise. The baseline already overfits by epoch 20 — augmentation may significantly extend the useful training window. Must be tested independently of architecture changes.
+Ideas to test separately. Each should be isolated to avoid confounding.
 - **Learned initial state**: make ConvLSTM (h0, c0) trainable parameters instead of zero-init. May improve cold-start (T=1..5) performance.
 - **Frame repetition warm-up**: repeat the first frame N times to prime ConvLSTM before processing real frames. Alternative cold-start strategy.
 - **Multiple seeds**: run each experiment with 3 seeds (0, 42, 123) and report mean+std for statistical rigor.
