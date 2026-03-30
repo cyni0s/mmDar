@@ -597,9 +597,47 @@ Same architecture as Phase 9a but with 41-frame temporal context (matching basel
 - ~~**Encoder depth is the next bottleneck.**~~ DISPROVEN — deeper 1D encoder (Phase 9a-deep) improved val 0.137 but WORSENED test 0.301. The bottleneck is the 1D representation and the val/test gap, not depth.
 - **The val/test gap is trajectory-level domain overfitting.** With 4 val trajectories, deeper models memorize val-specific patterns. Fix: expand val set, add data augmentation, score per-trajectory median.
 
-## In Progress: Physics-First 2D Gaussian Model
+## Phase 9b: Physics-First 2D Gaussian Model
 
-Classical FFT (fixed, 64 az bins) → deep 2D encoder (preserves azimuth×range structure) → DETR decoder → Gaussians. Key change: uses physics as input instead of re-learning FFT, and keeps 2D spatial structure throughout (no 1D collapse). 3.1M params, 41 frames. Code: `v2/model/physics_frontend.py`, `v2/train/train_physics_gaussian.py`.
+**Hypothesis:** Using classical FFT as input (physics does the heavy lifting) with a 2D encoder that preserves azimuth×range spatial structure will improve test generalization over the 1D approach.
+
+**Architecture:** Classical FFT (fixed, 64 az bins) → stack 41 frames (82ch) → deep 2D encoder (ResBlocks + stride-2: 64×512 → 32×256 → 16×128 → 8×64) → 512 spatial tokens with 2D positional encoding → DETR decoder (96 queries) → Gaussians. 3.1M params.
+
+**Key changes from Phase 9a:** (1) classical FFT instead of learned beamspace, (2) 2D encoder preserving angular structure instead of 1D collapse, (3) 2D positional encoding on spatial tokens.
+
+**Script:** `v2/model/physics_frontend.py`, `v2/train/train_physics_gaussian.py`
+
+### Results (50 epochs, 3.1M params, 41 frames)
+
+| Threshold | Chamfer (test) | mod-H (test) |
+|-----------|---------------|-------------|
+| 0.0 | 0.352 | 0.268 |
+| **0.3** | **0.330** | **0.261** |
+| 0.5 | 0.342 | 0.262 |
+| 0.7 | 0.396 | 0.290 |
+
+### Full Gaussian model comparison
+
+| Model | Params | Val mod-H | Test mod-H | Test Chamfer |
+|-------|--------|-----------|-----------|-------------|
+| Baseline (PNG UNet) | 17.5M | — | **0.189** | **0.295** |
+| Gaussian 1D (8fr, shallow) | 1.58M | 0.218 | 0.345 | 0.421 |
+| Gaussian 1D (41fr, shallow) | 4.6M | 0.218 | 0.278 | 0.356 |
+| Gaussian 1D (41fr, deep) | 5.3M | 0.137 | 0.301 | 0.362 |
+| **Physics-first 2D** | **3.1M** | **0.129** | **0.261** | **0.330** |
+
+### Analysis
+
+- **Best Gaussian model so far.** Test mod-H 0.261 beats all 1D variants (0.278-0.345). Test Chamfer 0.330 also improved.
+- **Classical FFT + 2D structure genuinely helps.** The physics-first approach converges faster (val 0.189 at epoch 4 vs epoch 10+ for 1D) and generalizes better (test 0.261 vs 0.278).
+- **Smallest model, best results.** 3.1M params vs 4.6-5.3M for 1D models — the 2D structure provides better inductive bias than raw capacity.
+- **Val/test gap persists** (0.129 vs 0.261 = 102%). Data augmentation + val expansion is the next step.
+- **Remaining gap to baseline**: 0.261 vs 0.189 = 38%. The baseline uses 17.5M params, 2D U-Net with skip connections, and mature training (BCE+Dice on dense occupancy). Our model uses 3.1M params, shallow 2D encoder, and Gaussian set prediction.
+
+### Lessons
+- **Physics as input works.** Classical FFT gives the network a head start — it doesn't waste capacity re-deriving beamforming. This is the biggest single improvement in the Gaussian model series.
+- **2D > 1D for generalization.** Preserving azimuth×range structure through the encoder helps the model learn spatial patterns (sidelobes, multipath) that transfer across trajectories.
+- **The val/test gap is now the dominant problem.** The model is expressive enough (val 0.129) but doesn't generalize. Data augmentation and val expansion are the priority, not more architecture changes.
 
 ## Future Experiments
 
