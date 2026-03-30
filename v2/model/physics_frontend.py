@@ -155,11 +155,23 @@ class PhysicsFirstEncoder(nn.Module):
         self.fft = ClassicalFFTFrontend(N_az=N_az)
 
         if channels_2d is None:
-            channels_2d = [64, 128, 192]
+            channels_2d = [64, 128, 192, 192]  # 3 stride-2 downs: 64x512 → 32x256 → 16x128 → 8x64 = 512 tokens
 
         in_ch = T * 2  # mag + logpow per frame
         self.encoder_2d = Deep2DEncoder(in_ch, channels_2d, dropout)
         self.out_ch = self.encoder_2d.out_ch
+
+        # 2D positional encoding (decomposed: azimuth + range)
+        # After 3 stride-2 downs: (N_az, R) → (N_az/8, R/8)
+        n_downs = len(channels_2d) - 1
+        h_out = N_az // (2 ** n_downs)   # 64 / 8 = 8
+        w_out = 512 // (2 ** n_downs)    # 512 / 8 = 64
+        n_tokens = h_out * w_out          # 512
+        half_c = self.out_ch // 2
+        self.az_pe = nn.Parameter(torch.randn(1, h_out, 1, half_c) * 0.02)
+        self.range_pe = nn.Parameter(torch.randn(1, 1, w_out, self.out_ch - half_c) * 0.02)
+        self._h_out = h_out
+        self._w_out = w_out
 
     def forward(self, x_seq: torch.Tensor) -> torch.Tensor:
         """Encode multi-frame raw IQ to 2D spatial tokens.
@@ -181,8 +193,21 @@ class PhysicsFirstEncoder(nn.Module):
             frame_feats.append(self.fft(x_seq[:, t]))  # (B, 2, N_az, R)
         stacked_2d = torch.cat(frame_feats, dim=1)     # (B, T*2, N_az, R)
 
-        # Deep 2D encoder → spatial tokens
-        return self.encoder_2d(stacked_2d)              # (B, N_tokens, out_ch)
+        # Deep 2D encoder → flattened spatial tokens
+        tokens = self.encoder_2d(stacked_2d)            # (B, N_tokens, out_ch)
+
+        # Add decomposed 2D positional encoding
+        # az_pe: (1, H, 1, C//2) broadcast over range → (1, H, W, C//2)
+        # range_pe: (1, 1, W, C-C//2) broadcast over azimuth → (1, H, W, C-C//2)
+        B_t, N, C = tokens.shape
+        pe_2d = torch.cat([
+            self.az_pe.expand(-1, -1, self._w_out, -1),
+            self.range_pe.expand(-1, self._h_out, -1, -1),
+        ], dim=-1)  # (1, H, W, C)
+        pe_flat = pe_2d.view(1, N, C)  # (1, N_tokens, C)
+        tokens = tokens + pe_flat
+
+        return tokens
 
 
 class PhysicsGaussianModel(nn.Module):
@@ -198,9 +223,9 @@ class PhysicsGaussianModel(nn.Module):
         K: Gaussian queries (default 96)
     """
 
-    def __init__(self, N_az=64, T=41, K=96):
+    def __init__(self, N_az=64, T=41, K=96, channels_2d=None):
         super().__init__()
-        self.encoder = PhysicsFirstEncoder(N_az=N_az, T=T)
+        self.encoder = PhysicsFirstEncoder(N_az=N_az, T=T, channels_2d=channels_2d)
         from v2.model.gaussian_head import GaussianSetDecoder
         self.decoder = GaussianSetDecoder(K=K, feat_ch=self.encoder.out_ch)
 

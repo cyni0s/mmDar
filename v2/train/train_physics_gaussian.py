@@ -49,7 +49,7 @@ def main():
     print(f'Device: {device}', flush=True)
 
     model = PhysicsGaussianModel(
-        N_az=args.N_az, T=args.window_size, K=args.K, out_ch=128,
+        N_az=args.N_az, T=args.window_size, K=args.K,
     ).to(device)
     n_params = sum(p.numel() for p in model.parameters())
     print(f'Model params: {n_params:,}', flush=True)

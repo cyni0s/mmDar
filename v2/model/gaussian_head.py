@@ -89,19 +89,33 @@ class GaussianSetDecoder(nn.Module):
                 'existence': (B, K) existence logits (pre-sigmoid)
                 'mu_xy':    (B, K, 2) Cartesian centers for eval
         """
-        if features.dim() == 3 and features.shape[1] != features.shape[2]:
-            # Detect format: if shape is (B, C, R) with C < R → 1D encoder format
-            # If shape is (B, N_tokens, C) with N_tokens > C → 2D encoder format
-            if features.shape[1] < features.shape[2]:
-                # (B, C, R) → permute to (B, R, C) for projection
-                features = features.permute(0, 2, 1)
-            # else: already (B, N_tokens, C)
+        # Accept either (B, C, R) from 1D encoder or (B, N_tokens, C) from 2D encoder
+        # Detect via feat_proj.in_features: if last dim matches, it's (B, N, C)
+        # If dim 1 matches, it's (B, C, R) and needs transpose
+        if features.shape[-1] == self.feat_proj.in_features:
+            pass  # already (B, N, C)
+        elif features.shape[1] == self.feat_proj.in_features:
+            features = features.permute(0, 2, 1)  # (B, C, R) → (B, R, C)
+        else:
+            raise ValueError(
+                f"Features shape {features.shape} doesn't match feat_proj.in_features="
+                f"{self.feat_proj.in_features}. Expected (B, N, {self.feat_proj.in_features}) "
+                f"or (B, {self.feat_proj.in_features}, R)."
+            )
 
         B, N, C = features.shape
 
         # Project features: (B, N, d_model)
         feat_tokens = self.feat_proj(features)  # (B, N, d)
-        feat_tokens = feat_tokens + self.range_pe[:, :N, :]
+        # Positional encoding — expand if needed
+        if N > self.range_pe.shape[1]:
+            # Interpolate PE to match token count
+            pe = torch.nn.functional.interpolate(
+                self.range_pe.permute(0, 2, 1), size=N, mode='linear', align_corners=True
+            ).permute(0, 2, 1)
+        else:
+            pe = self.range_pe[:, :N, :]
+        feat_tokens = feat_tokens + pe
 
         # Expand queries: (B, K, d_model)
         queries = self.queries.unsqueeze(0).expand(B, -1, -1)
