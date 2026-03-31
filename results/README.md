@@ -676,3 +676,28 @@ Same as Phase 9a-41 but with 8-block dilated residual 1D encoder (5.3M params vs
 
 **Result: deeper 1D encoder makes test WORSE (0.301 vs 0.278) despite much better val (0.137 vs 0.218).** The deeper model overfits the 4 val trajectories without learning generalizable features. More 1D depth is not the answer — the 2D spatial structure (which the physics-first model preserves) is what's needed for generalization.
 
+
+## Phase 9c: Physics-First 2D with Augmentation (No Improvement)
+
+**Hypothesis:** Data augmentation (horizontal flip, complex noise, temporal masking) + expanded val (8 trajectories) would reduce the val/test gap and improve test mod-H.
+
+**Changes from Phase 9b:** 17 train (was 21), 8 val (was 4), augmentation on. Per-trajectory median eval.
+
+### Results
+
+| Threshold | mod-H traj_median (test) | Chamfer traj_median (test) |
+|-----------|--------------------------|---------------------------|
+| 0.3 | 0.266 | 0.358 |
+
+Val mod-H: 0.119. Test mod-H: 0.266. Gap: 124% (WIDER than Phase 9b's ~102%).
+
+### Why augmentation didn't help
+
+The val/test gap is NOT from random noise or orientation variation — it's from **domain shift** between low-ID trajectories (112-140, all train+val) and high-ID trajectories (227-250, test only). The augmentations simulate random perturbations, not different environments.
+
+Per-trajectory test breakdown (Phase 9b): low-ID test trajs (117-139) score mod-H 0.10-0.16. High-ID test trajs (227-250) score 0.23-0.48. This is an environment-level distribution gap, not a regularization problem.
+
+### Lessons
+- **Augmentation doesn't fix domain shift.** Flip, noise, and temporal masking don't simulate different radar environments. The hard test trajectories need environment-level diversity, not random perturbations.
+- **The dataset split is the fundamental limitation.** All high-ID trajectories are sealed in test. The model cannot learn their distribution.
+- **Less training data (17 vs 21 trajs) may have offset any augmentation gains.**
