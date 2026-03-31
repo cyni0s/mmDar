@@ -1,0 +1,34 @@
+{
+  "train": true,
+  "lr": 0.0001,
+  "batch_size": 4,
+  "epochs": 50,
+  "window_size": 41,
+  "K": 96,
+  "N_az": 64,
+  "log_dir": "logs/v2_mixed_split",
+  "processed_dir": "v2/data/processed",
+  "n_params": 3096069,
+  "split": "mixed",
+  "high_id_train": [
+    229,
+    233,
+    238,
+    246
+  ],
+  "high_id_val": [
+    230,
+    242
+  ],
+  "high_id_test": [
+    227,
+    232,
+    236,
+    237,
+    245,
+    247,
+    248,
+    249,
+    250
+  ]
+}
