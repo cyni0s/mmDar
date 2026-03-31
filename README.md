@@ -251,6 +251,9 @@ The `legacy_cartesian` mode reproduces the paper's eval pipeline within 3% (Cham
 - **Use classical physics as input, let the network learn the delta.** The baseline PNGs work because FFT/beamforming/thresholding is already done. The U-Net only learns the residual. Don't re-derive physics in the network — use it as a starting point.
 - **Keep 2D spatial structure (azimuth × range).** Collapsing azimuth to 1D features loses spatial patterns (sidelobes, multi-target at same range). The baseline's 2D U-Net exploits these patterns. A pure 1D range encoder cannot.
 - **Fewer points ≠ better precision with Chamfer loss.** 2048-point decoder (vs 8192) gave marginal mod-H improvement (0.429→0.398) with worse Chamfer. The loss still optimizes coverage, just with fewer points to spread.
+- **Augmentation doesn't fix domain shift.** Flip, noise, and temporal masking simulate random perturbations, not different radar environments. The val/test gap (0.119→0.261) persists because all training trajectories are low-ID (112-140) while hard test trajectories are high-ID (227-250).
+- **Deeper 1D encoder worsens generalization.** 8-block dilated encoder achieved val mod-H 0.137 but test 0.301 — worse than the shallow encoder's test 0.278. More capacity without structural improvement enables more overfitting.
+- **Baseline checkpoint was selected on TEST data.** The original 0.189 mod-H result had no validation set. Checkpoints were evaluated on test and the best was selected. This is optimistic bias — the honest baseline number (val-selected) may be worse.
 
 ### Hyperparameter Sweep Summary (RTX 5090)
 

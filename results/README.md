@@ -701,3 +701,19 @@ Per-trajectory test breakdown (Phase 9b): low-ID test trajs (117-139) score mod-
 - **Augmentation doesn't fix domain shift.** Flip, noise, and temporal masking don't simulate different radar environments. The hard test trajectories need environment-level diversity, not random perturbations.
 - **The dataset split is the fundamental limitation.** All high-ID trajectories are sealed in test. The model cannot learn their distribution.
 - **Less training data (17 vs 21 trajs) may have offset any augmentation gains.**
+
+## IMPORTANT: Baseline Evaluation Methodology Issue
+
+**The baseline's 0.189 mod-H was checkpoint-selected on the TEST set.** The original training had NO validation set. Checkpoints (epochs 10, 20, 30) were evaluated directly on test data, and epoch 10 was selected because it had the best test Chamfer. The threshold sweep (0.175 at sigmoid 0.010) was also performed on test.
+
+This means: **the baseline numbers (0.189 / 0.175) are optimistically biased** by test-set selection. All our Gaussian models use a proper val set for checkpoint selection and only evaluate test once at the end.
+
+A honest baseline retrain with val-selected checkpoint is queued (`v2/train/train_baseline_honest.py`). The true honest baseline mod-H may be worse than 0.189.
+
+## In Progress
+
+### Mixed-ID Capacity Test
+Physics-first Gaussian trained on mixed split (4 high-ID trajectories added to training). Tests whether the architecture can learn high-ID environments when given the data. If high-ID test mod-H improves → data problem, architecture works. Script: `v2/train/train_mixed_split.py`.
+
+### Baseline Honest Retrain (queued)
+Same UNet1 (batch=12, lr=7e-5, fp32, 50 epochs) but with proper 8-trajectory val split. Checkpoint selected on val mod-H. Will give the first fair comparison number. Script: `v2/train/train_baseline_honest.py`. Auto-launches after mixed-ID finishes.
