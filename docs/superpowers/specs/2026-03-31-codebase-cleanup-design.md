@@ -104,13 +104,47 @@ Every kept .py file gets:
 - `.planning/` — GSD planning files
 - `paper/` — reference papers
 
+## Critical Fixes (from Codex cleanup audit)
+
+### Fix 1: Rewrite v2/model/__init__.py
+Current `__init__.py` imports decoder, decoder_2d, occupancy, temporal — all being deleted. Will crash immediately. Replace with:
+```python
+from v2.model.physics_frontend import PhysicsGaussianModel, PhysicsFirstEncoder, ClassicalFFTFrontend, Deep2DEncoder
+from v2.model.gaussian_head import GaussianSetDecoder, DecoderLayer
+from v2.model.beamspace import LearnedBeamspace, DilatedResBlock1d
+from v2.model.lista import FFTBeamformer, build_steering_matrix
+
+__all__ = [
+    "PhysicsGaussianModel", "PhysicsFirstEncoder", "ClassicalFFTFrontend", "Deep2DEncoder",
+    "GaussianSetDecoder", "DecoderLayer",
+    "LearnedBeamspace", "DilatedResBlock1d",
+    "FFTBeamformer", "build_steering_matrix",
+]
+```
+
+### Fix 2: Baseline folder — DON'T move train_test_utils/
+Keep `train_test_utils/` in its original location (too many import paths depend on it). Instead:
+- Move only ROOT training/test scripts to `baseline/`: `train_radarhd.py`, `test_radarhd.py`, `train_baseline_honest.py`
+- Baseline scripts use `sys.path.insert(0, '..')` to find `train_test_utils/` from `baseline/`
+- This avoids breaking ANY existing import paths
+
+### Fix 3: Split resolution in consolidated train.py
+`windowed_dataset.py` hardwires `from v2.data.split import TRAIN_TRAJS`. The consolidated training script must:
+- Accept `--split original/v2/mixed` flag
+- Import the correct split module based on flag
+- Pass explicit trajectory lists to a modified `build_dataloaders(trajs_train, trajs_val, trajs_test, ...)` function
+- OR: refactor `windowed_dataset.py` to accept trajectory lists as arguments instead of importing them at module level
+
+Recommended: modify `build_windowed_dataloaders()` to accept trajectory lists as parameters, with defaults from split.py for backward compatibility.
+
 ## Verification after cleanup
 1. `docker compose run --rm mmdar python3 -c "from v2.model.physics_frontend import PhysicsGaussianModel; print('OK')"` — model imports
-2. `docker compose run --rm mmdar python3 -c "from train_test_utils.model import UNet1; print('OK')"` — baseline imports (from baseline/ subfolder)
+2. `docker compose run --rm mmdar python3 -c "from train_test_utils.model import UNet1; print('OK')"` — baseline imports (unchanged path)
 3. `docker compose run --rm mmdar python3 -m pytest v2/eval/tests/test_fps.py -v` — FPS tests
 4. Smoke test: PhysicsGaussianModel forward + backward on one batch
 5. Verify `v2/train/train.py --help` shows all flags
+6. Verify `v2/model/__init__.py` imports don't crash
 
 ## File count
 - Before: ~75 Python files
-- After: ~25 Python files (+ baseline subfolder)
+- After: ~25 Python files (+ baseline/ subfolder with 3 scripts)
