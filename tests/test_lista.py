@@ -1,4 +1,4 @@
-"""Tests for v2/model/lista.py — LISTA beamformer and FFT baseline.
+"""Tests for model/lista.py — LISTA beamformer and FFT baseline.
 
 Covers:
 - Steering matrix shape, dtype, and near-broadside phase
@@ -20,7 +20,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import pytest
 
-from v2.model.lista import (
+from model.lista import (
     build_steering_matrix,
     sin_theta_to_bin,
     LISTABeamformer,

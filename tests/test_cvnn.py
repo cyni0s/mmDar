@@ -1,4 +1,4 @@
-"""Tests for v2/model/cvnn.py — complex-valued neural network primitives.
+"""Tests for model/cvnn.py — complex-valued neural network primitives.
 
 Covers:
 - complex_soft_threshold: magnitude shrink, phase preservation, zero-input safety
@@ -20,7 +20,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import pytest
 
-from v2.model.cvnn import (
+from model.cvnn import (
     complex_soft_threshold,
     ComplexConv1d,
     ComplexGroupNorm,
