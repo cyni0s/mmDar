@@ -1,17 +1,60 @@
 # mmDar Experiment Results
 
-## Comparison Table (Legacy-Cartesian Eval, Paper-Comparable)
+## Master Comparison Table (Fair Evaluation)
 
-| Experiment | Chamfer (m) | Mod-Hausdorff (m) | IoU | F1 | Precision | Recall | Notes |
-|------------|-------------|-------------------|-----|-----|-----------|--------|-------|
-| Paper (reported) | 0.36 | 0.24 | — | — | — | — | RadarHD ICRA 2023 |
-| **5090-optimized** | **0.295** | **0.189** | 0.054 | 0.102 | 0.196 | 0.069 | batch=12, lr=7e-5, fp32, epoch 10 |
-| baseline_pretrained | 0.363 | 0.247 | 0.026 | 0.051 | 0.119 | 0.033 | Authors' pretrained 120.pt_gen |
-| baseline_paper_params | 0.399 | 0.277 | 0.025 | 0.050 | 0.134 | 0.031 | batch=6, lr=1e-4, fp32, best.pt_gen of 200 epochs |
-| baseline_5090_adapted | 0.537 | 0.378 | 0.013 | 0.025 | 0.082 | 0.015 | batch=48, lr=8e-4, bf16, best.pt_gen of 200 epochs |
-| convlstm_T8_ep30 | 0.603 | 0.467 | 0.026 | 0.050 | 0.073 | 0.038 | **Negative result.** batch=8, lr=7e-5, fp32, T=8 TBPTT, 30 epochs (10.4h) |
+All models below use **val-selected checkpoints** unless marked. Frame-median over sealed 19-trajectory test set.
 
-*All table values are median over 18,575 test samples using `--coordinate-mode legacy_cartesian`. Checkpoints selected by Chamfer distance sweep unless noted as best.pt_gen (training loss).*
+### Current Best Models
+
+| Model | Input | Params | Chamfer (m) | Mod-H (m) | Selection | Notes |
+|-------|-------|--------|-------------|-----------|-----------|-------|
+| **Gaussian physics-first 9c** | **Raw IQ → FFT 2D** | **3.1M** | **0.318** | **0.230** | **VAL** | **Best fair result** |
+| Gaussian mixed-ID | Raw IQ → FFT 2D | 3.1M | 0.279* | 0.207* | VAL | *Different test set (13 trajs) |
+| Honest baseline (UNet1) | PNGs | 17.5M | 0.406 | 0.296 | VAL | Same 17/8 split as 9c |
+| Original baseline (UNet1) | PNGs | 17.5M | 0.295 | 0.189 | **TEST** | ⚠️ NOT FAIR — test-selected |
+| Paper (reported) | PNGs | 17.5M | 0.36 | 0.24 | unknown | RadarHD ICRA 2023 |
+
+**The physics-first Gaussian model beats the honest baseline by 22% on Chamfer and 22% on mod-H**, using 5.6× fewer parameters and raw IQ input instead of preprocessed PNGs.
+
+The original baseline's 0.189 mod-H was artificially low from test-set checkpoint selection. The honest number is 0.296.
+
+### All Experiments (Chronological)
+
+| Phase | Model | Chamfer | Mod-H | Outcome |
+|-------|-------|---------|-------|---------|
+| — | Original baseline (test-selected) | 0.295 | 0.189 | ⚠️ Unfair reference |
+| — | Honest baseline (val-selected) | 0.406 | 0.296 | Fair reference |
+| 2 | ConvLSTM temporal | 0.603 | 0.467 | FAILED: fusion too late |
+| 3 | v2 Mag+Phase point decoder | 0.309 | 0.423 | Chamfer close, mod-H 2× gap |
+| 3 | v2 occupancy (75K params) | 0.750 | 0.668 | FAILED: too small |
+| 3 | v2 2D angular fix | 0.347 | 0.484 | FAILED: worse both |
+| 4 | Temporal cross-attention N=8 | 0.295 | 0.429 | Chamfer matched, mod-H unchanged |
+| 5 | Physics losses | DIV | DIV | FAILED: gradient conflict |
+| 6 | Cardinality test | — | — | DISPROVED: baseline uses ~2874 pts |
+| 7 | GT standardization | — | — | DISPROVED: gap is real model quality |
+| 8a | LISTA + U-Net occupancy | 1.281 | 1.844 | FAILED: beamformer features too blurred |
+| — | 2048-point decoder | 0.364 | 0.398 | Marginal improvement |
+| 9a | Gaussian 1D (8fr) | 0.421 | 0.345 | Hungarian NLL helps |
+| 9a | Gaussian 1D (41fr, shallow) | 0.356 | 0.278 | +temporal context |
+| 9a | Gaussian 1D (41fr, deep) | 0.362 | 0.301 | WORSE: overfits more |
+| **9b** | **Physics-first 2D (41fr)** | **0.330** | **0.261** | **2D + FFT input helps** |
+| 9c | Physics-first + augmentation | 0.358† | 0.266† | Augmentation didn't help |
+| **9c** | **Physics-first (unified eval)** | **0.318** | **0.230** | **Best fair result** |
+| mixed | Physics-first mixed-ID | 0.279* | 0.207* | Architecture validated |
+
+*Different test set (13 trajs). †Trajectory-median metric, others are frame-median.
+
+### Baseline Evaluation History
+
+| Experiment | Chamfer (m) | Mod-Hausdorff (m) | IoU | F1 | Notes |
+|------------|-------------|-------------------|-----|-----|-------|
+| Paper (reported) | 0.36 | 0.24 | — | — | RadarHD ICRA 2023 |
+| 5090-optimized (TEST-selected) | 0.295 | 0.189 | 0.054 | 0.102 | ⚠️ Checkpoint selected on test |
+| baseline_pretrained | 0.363 | 0.247 | 0.026 | 0.051 | Authors' pretrained 120.pt_gen |
+| baseline_paper_params | 0.399 | 0.277 | 0.025 | 0.050 | batch=6, lr=1e-4, fp32, 200 epochs |
+| **Honest baseline (VAL-selected)** | **0.406** | **0.296** | — | — | **Same hyperparams, proper val split** |
+
+*All frame-median over 18,575 test samples using legacy_cartesian mode.*
 
 ## Comparison Table (Polar-Direct Eval, Reference Only)
 

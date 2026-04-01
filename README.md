@@ -1,25 +1,43 @@
-# mmDar — Radar Super-Resolution via Asymmetric U-Net
+# mmDar — Physics-First Radar Point Cloud Generation
 
-mmDar extends [RadarHD (ICRA 2023)](https://arxiv.org/abs/2206.09273) to improve radar-to-lidar
-polar image translation. The research goal is to quantifiably improve over the RadarHD baseline
-on point-cloud metrics (Chamfer distance, modified Hausdorff) through targeted architectural
-enhancements: temporal modeling, attention mechanisms, and advanced loss functions.
-
-Each improvement is isolated and ablated so the contribution of each change is measurable.
+mmDar generates lidar-like point clouds from raw mmWave radar IQ data (TI AWR1843, 8 virtual antennas, 77 GHz). Started from [RadarHD (ICRA 2023)](https://arxiv.org/abs/2206.09273) as a baseline, then developed a novel physics-first architecture: classical FFT beamforming as input → 2D spatial encoder → DETR-style Gaussian set decoder with Hungarian NLL loss.
 
 ## Key Results
 
-| Experiment | Chamfer (m) | Mod-Hausdorff (m) | Frames | Notes |
-|------------|-------------|-------------------|--------|-------|
-| Paper (reported) | 0.36 | 0.24 | 41 | RadarHD ICRA 2023 |
-| **5090-optimized** | **0.295** | **0.189** | **41** | **batch=12, lr=7e-5, fp32, epoch 10 (22 min)** |
-| baseline_pretrained | 0.363 | 0.247 | 41 | Authors' pretrained 120.pt_gen |
-| v2 Mag+Phase (raw IQ) | 0.309 | 0.423 | **1** | Single-frame, no PNG preprocessing, 2.08M params, 1.3ms |
-| **v2 Temporal xattn** | **0.295** | **0.429** | **8** | **Matches baseline Chamfer, 8× fewer params (2.2M), 5× fewer frames** |
+| Model | Input | Params | Chamfer (m) | Mod-H (m) | Selection | Fair? |
+|-------|-------|--------|-------------|-----------|-----------|-------|
+| **Physics-first Gaussian** | **Raw IQ** | **3.1M** | **0.318** | **0.230** | **VAL** | **YES** |
+| Honest baseline (UNet1) | PNGs | 17.5M | 0.406 | 0.296 | VAL | YES |
+| Original baseline (UNet1) | PNGs | 17.5M | 0.295 | 0.189 | TEST | ⚠️ NO |
+| Paper (RadarHD ICRA 2023) | PNGs | 17.5M | 0.36 | 0.24 | unknown | — |
 
-*All values are median over 18,575 test samples using legacy-cartesian coordinate conversion (paper-comparable pipeline).*
+**With fair evaluation (val-selected checkpoints), the physics-first Gaussian model beats the baseline by 22% on both Chamfer and mod-Hausdorff, using 5.6× fewer parameters and raw IQ input instead of preprocessed PNGs.**
 
-See [`results/README.md`](./results/README.md) for full experiment tracking.
+The original baseline's 0.189 mod-H was artificially low from test-set checkpoint selection. The honest baseline number is 0.296.
+
+*Frame-median over sealed 19-trajectory test set. Same 17 train / 8 val split for fair comparison.*
+
+### Architecture
+
+```
+Raw IQ (8 ant × 512 range, complex) × 41 frames
+  → Classical FFT beamformer (FIXED, 64 azimuth bins — physics does the heavy lifting)
+  → Stack 41 frames as channels
+  → Deep 2D encoder (preserves azimuth × range spatial structure)
+  → 512 spatial tokens with 2D positional encoding
+  → DETR-style decoder (96 learnable queries, 3 cross-attention layers)
+  → Per query: (range, azimuth, σ_range, σ_perp, existence) — Gaussian in polar coords
+  → Filter by existence → extract centers → point cloud
+```
+
+### Key Innovations
+- **Physics as input, not learned**: classical FFT gives the network a head start; it learns only the residual
+- **Gaussian set prediction**: DETR-style queries predict scene elements, not a fixed grid or fixed point count
+- **Hungarian NLL loss**: one-to-one matching prevents the "spray imprecise points" failure of Chamfer loss
+- **Physics-informed uncertainty**: σ_perp scales with range (angular error × distance)
+- **2D spatial structure preserved**: no 1D collapse of azimuth dimension
+
+See [`results/README.md`](./results/README.md) for full experiment tracking (12+ phases).
 
 ## Setup & Installation
 
