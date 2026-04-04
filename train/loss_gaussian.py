@@ -164,6 +164,42 @@ def sigma_prior_loss(
 import math
 
 
+def huber_range_loss(
+    mu_xy: torch.Tensor,          # (B, K, 2) predicted centers
+    existence: torch.Tensor,      # (B, K) existence logits
+    gt_xy: torch.Tensor,          # (B, M, 2) GT prototype centers
+    delta: float = 0.2,
+) -> torch.Tensor:
+    """Huber range loss on Hungarian-matched pairs.
+
+    Provides sigma-independent gradient for range precision.
+    Uses the same Hungarian matching as NLL (recomputed for simplicity).
+    """
+    B, K, _ = mu_xy.shape
+    device = mu_xy.device
+    total = torch.tensor(0.0, device=device)
+
+    for b in range(B):
+        with torch.no_grad():
+            cost = torch.cdist(mu_xy[b], gt_xy[b], p=1)
+            exist_cost = -torch.sigmoid(existence[b]).unsqueeze(1).expand_as(cost)
+            cost = cost + 0.5 * exist_cost
+            row_idx, col_idx = linear_sum_assignment(cost.cpu().numpy())
+            row_idx = torch.tensor(row_idx, device=device)
+            col_idx = torch.tensor(col_idx, device=device)
+
+        matched_pred = mu_xy[b, row_idx]  # (N, 2)
+        matched_gt = gt_xy[b, col_idx]    # (N, 2)
+
+        # Range of matched predictions and GT
+        pred_r = torch.norm(matched_pred, dim=1)
+        gt_r = torch.norm(matched_gt, dim=1)
+
+        total = total + F.smooth_l1_loss(pred_r, gt_r, beta=delta)
+
+    return total / B
+
+
 def gaussian_composite_loss(
     model_out: dict,
     gt_prototypes: torch.Tensor,  # (B, M, 2) GT prototype centers
@@ -177,15 +213,23 @@ def gaussian_composite_loss(
     w_cardinality: float = 0.5,
     w_repulsion: float = 0.1,
     w_sigma_prior: float = 0.1,
+    # Configurable priors
+    sigma_r_prior: float = 0.1,
+    sigma_perp_prior: float = 0.3,
+    # Huber range loss
+    w_huber_range: float = 0.0,
 ) -> dict:
     """Composite loss combining all Gaussian set prediction losses.
 
     Args:
         model_out: dict from GaussianSetDecoder.forward()
-        gt_prototypes: (B, M, 2) K-Means centers of lidar GT
+        gt_prototypes: (B, M, 2) K-Means/FPS centers of lidar GT
         gt_full: (B, N, 2+) full lidar GT point cloud
         n_gt: (B,) number of valid GT prototypes per sample
         epoch: current epoch (for scheduling)
+        sigma_r_prior: prior target for range uncertainty
+        sigma_perp_prior: prior target for perpendicular uncertainty
+        w_huber_range: weight for Huber range loss (0 = disabled)
 
     Returns:
         dict with 'total' and individual loss components
@@ -210,20 +254,28 @@ def gaussian_composite_loss(
     # 4. Repulsion
     rep = repulsion_loss(mu_xy, existence)
 
-    # 5. Sigma prior
-    sig = sigma_prior_loss(sigma_r, sigma_perp)
+    # 5. Sigma prior (configurable targets)
+    sig = sigma_prior_loss(sigma_r, sigma_perp,
+                           sigma_r_prior=sigma_r_prior,
+                           sigma_perp_prior=sigma_perp_prior)
+
+    # 6. Huber range loss (optional)
+    if w_huber_range > 0:
+        h_range = huber_range_loss(mu_xy, existence, gt_prototypes)
+    else:
+        h_range = torch.tensor(0.0, device=mu_xy.device)
 
     # Warm-up: first few epochs focus on position, then add uncertainty
     if epoch < 3:
         w_sigma_prior = 0.0
-        # Use larger sigma initially (frozen)
 
     total = (w_nll * hun['nll'] +
              w_exist * hun['existence'] +
              w_coverage * cov +
              w_cardinality * card +
              w_repulsion * rep +
-             w_sigma_prior * sig)
+             w_sigma_prior * sig +
+             w_huber_range * h_range)
 
     return {
         'total': total,
@@ -233,4 +285,5 @@ def gaussian_composite_loss(
         'cardinality': card.detach(),
         'repulsion': rep.detach(),
         'sigma_prior': sig.detach(),
+        'huber_range': h_range.detach() if isinstance(h_range, torch.Tensor) else h_range,
     }

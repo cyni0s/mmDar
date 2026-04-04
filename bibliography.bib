@@ -444,3 +444,262 @@
   % [KEY FINDING] Working with raw tensors (not point clouds) improves density/resolution
   % [GAP] 4D radar (different hardware). Still post-FFT, no complex-valued processing.
 }
+
+% =============================================================================
+% CODEX REVIEW ADDITIONS (2026-03-20)
+% =============================================================================
+
+@inproceedings{radarfields2024,
+  title     = {Radar Fields: Frequency-Space Neural Scene Representations for FMCW Radar},
+  author    = {Borts, David and Liang, Erich and Broedermann, Tim and Ramanan, Deva and Berman, Matthew and Narasimhan, Srinivasa G.},
+  booktitle = {ACM SIGGRAPH},
+  year      = {2024},
+  url       = {https://light.princeton.edu/publication/radarfields/},
+  % [TASK] Dense 3D geometry reconstruction from raw FMCW radar Fourier-space measurements
+  % [METHOD] Neural scene representation in radar frequency space. Physics-informed
+  %          differentiable rendering of radar signals. Learns dense 3D geometry directly.
+  % [INPUT] Raw radar Fourier-space measurements (complex-valued)
+  % [KEY FINDING] Raw radar + physics-informed learning → dense 3D geometry.
+  %              Demonstrates that working in Fourier/frequency space preserves more info
+  %              than point cloud or image representations.
+  % [RELEVANCE TO US] Very close to our problem. Different signal model and approach
+  %   (neural scene representation vs feedforward prediction) but validates the thesis
+  %   that raw complex radar → dense geometry is viable.
+  % [GAP] Scene representation (requires optimization), not single-pass feedforward.
+  %        Different radar type. But narrowing our novelty claim significantly.
+}
+
+@article{r2s2_2021,
+  title     = {R2S2: Radar-to-Satellite Super Resolution via Learned Radar Signal Processing},
+  author    = {Stephan, others},
+  journal   = {Science Robotics},
+  year      = {2021},
+  url       = {https://pubmed.ncbi.nlm.nih.gov/34910530/},
+  % [TASK] Learned radar angular super-resolution
+  % [METHOD] Neural network replaces classical angle estimation (MUSIC/ESPRIT)
+  % [INPUT] Complex radar signals
+  % [KEY FINDING] Learned methods can beat FFT localization on sparse high-SNR scenes.
+  %              Central reference for any angular SR claim from radar.
+  %              BUT: does not create more DOF than the antenna array provides.
+  % [RELEVANCE TO US] Must-cite for our angular SR claims. Establishes that learned
+  %   methods improve localization precision, not angular DOF count.
+  % [GAP] Outputs improved radar representation, not lidar-quality point clouds.
+}
+
+@article{doa_rt_sr_2024,
+  title     = {A Real-Time Super-Resolution DoA Estimation Algorithm for Automotive Radar Sensor},
+  author    = {Unknown},
+  journal   = {IEEE Sensors Journal},
+  year      = {2024},
+  doi       = {10.1109/JSEN.2024.3462350},
+  % [TASK] Real-time angular super-resolution for automotive radar
+  % [METHOD] Fast DoA estimation exceeding FFT resolution
+  % [INPUT] Radar antenna array signals
+  % [KEY FINDING] Angular SR achievable in real-time on automotive hardware
+  % [RELEVANCE TO US] Validates real-time angular SR is feasible. Supports our
+  %   deployment claims for edge devices.
+}
+
+% =============================================================================
+% MULTI-FRAME RADAR FUSION / TEMPORAL DENSIFICATION
+% =============================================================================
+
+@article{dreampcd2024,
+  title     = {DREAM-PCD: Deep Reconstruction and Enhancement of mmWave Radar Pointcloud},
+  author    = {Yin, Ruixu and others},
+  journal   = {IEEE Transactions on Pattern Analysis and Machine Intelligence},
+  year      = {2024},
+  doi       = {10.1109/TPAMI.2024.3510454},
+  url       = {https://pubmed.ncbi.nlm.nih.gov/40030488/},
+  % [TASK] Dense point cloud from single-chip mmWave radar using multi-frame fusion
+  % [METHOD] Three components: Non-Coherent Accumulation (dense points), Synthetic Aperture
+  %          Accumulation (angular resolution), Real-Denoise Multiframe network (interference).
+  %          Uses ego-motion for SAR-like coherent accumulation across frames.
+  % [INPUT] Raw radar data from two orthogonal single-chip radars
+  % [KEY FINDING] Multi-frame accumulation + ego-motion compensation is key to density.
+  %              Introduces RadarEyes dataset (>1M frames). SOTA on indoor reconstruction.
+  % [RELEVANCE TO US] Closest existing work to our multi-view fusion idea.
+  %   They use classical SAR accumulation; we propose Gaussian Bayesian fusion.
+  %   They require two radars; we target single chip.
+  % [GAP] Uses two radars. Classical accumulation, not learned Gaussian fusion.
+}
+
+@article{radarmamba2025,
+  title     = {Radar-Mamba: 4D Millimeter-Wave Point Cloud Enhancement via State Space Models},
+  author    = {Zhang, others},
+  journal   = {ACM Multimedia (MM)},
+  year      = {2025},
+  url       = {https://palm.seu.edu.cn/zhangml/files/MM'25.pdf},
+  % [TASK] Generate dense lidar-like point clouds from raw radar data
+  % [METHOD] State space model (Mamba) for spatio-temporal feature extraction from radar cube.
+  %          RM blocks + RHSS modules. Only 2.4M parameters.
+  % [INPUT] 4D radar cube (raw)
+  % [KEY FINDING] SSM architecture competitive with transformers at fraction of params.
+  %              Extracts local and global spatio-temporal features efficiently.
+  % [RELEVANCE TO US] Alternative temporal architecture. Very efficient.
+  % [GAP] 4D radar hardware (not single-chip). Different sensor class.
+}
+
+@inproceedings{r2p2022,
+  title     = {R2P: A Deep Learning Model from mmWave Radar to Point Cloud},
+  author    = {Cheng, Yiming and Su, Hang and He, Yongen and Li, Huai Yu},
+  booktitle = {IEEE International Conference on Pattern Recognition (ICPR)},
+  year      = {2022},
+  url       = {https://arxiv.org/abs/2207.10690},
+  % [TASK] mmWave radar to dense 3D point cloud
+  % [METHOD] Direct regression from radar features to 3D points
+  % [INPUT] Radar signal processing output
+  % [KEY FINDING] Direct radar-to-point-cloud mapping is feasible
+  % [GAP] No temporal fusion. No Gaussian output. No ego-motion.
+}
+
+% =============================================================================
+% GAUSSIAN REPRESENTATIONS FOR RADAR
+% =============================================================================
+
+@inproceedings{radarsplat2025,
+  title     = {RadarSplat: Radar Gaussian Splatting for High-Fidelity Data Synthesis and 3D Reconstruction},
+  author    = {Kung, others},
+  booktitle = {IEEE/CVF International Conference on Computer Vision (ICCV)},
+  year      = {2025},
+  url       = {https://openaccess.thecvf.com/content/ICCV2025/papers/Kung_RadarSplat_Radar_Gaussian_Splatting_for_High-Fidelity_Data_Synthesis_and_3D_ICCV_2025_paper.pdf},
+  % [TASK] Radar scene synthesis and 3D reconstruction via Gaussian splatting
+  % [METHOD] 3DGS adapted for radar: Gaussians represent radar reflectors with learned
+  %          radar cross-section and scattering properties. Differentiable radar rendering.
+  % [INPUT] Radar point clouds from driving datasets
+  % [KEY FINDING] Gaussians are a natural representation for radar scenes.
+  %              Enables high-fidelity radar data synthesis for training augmentation.
+  % [RELEVANCE TO US] Validates Gaussian representation for radar.
+  %   CRITICAL DIFFERENCE: They use Gaussians for scene reconstruction/synthesis (offline).
+  %   We propose Gaussians as the INFERENCE output (online, per-frame), enabling
+  %   Bayesian temporal fusion. Different use of same mathematical primitive.
+  % [GAP] Scene-level optimization (not real-time). Point cloud input, not raw data.
+  %        Gaussians used for rendering, not for uncertainty-aware detection output.
+}
+
+% =============================================================================
+% RADAR EGO-MOTION ESTIMATION (radar-only, no IMU)
+% =============================================================================
+
+@inproceedings{mmphase2024,
+  title     = {Dynamic Ego-Velocity Estimation Using Moving mmWave Radar: A Phase-Based Approach},
+  author    = {Unknown},
+  booktitle = {ACM MobiSys (Poster)},
+  year      = {2024},
+  url       = {https://dl.acm.org/doi/10.1145/3643832.3661425},
+  % [TASK] Radar-only ego-velocity estimation from single chip mmWave
+  % [METHOD] Phase-based velocity estimation — exploits inter-chirp phase changes.
+  %          No Doppler resolution limitation. Works on moving platforms.
+  % [INPUT] Raw mmWave radar I/Q
+  % [KEY FINDING] Phase-based approach overcomes Doppler resolution limits.
+  %              Single-chip mmWave is sufficient for ego-velocity estimation.
+  % [RELEVANCE TO US] Enables radar-only ego-motion for Gaussian frame registration.
+  %   Same sensor family (single-chip TI mmWave). No IMU required.
+  % [GAP] Velocity only, not full 6-DOF pose. Poster, not full paper.
+}
+
+@inproceedings{efear4d2024,
+  title     = {EFEAR-4D: Ego-Velocity Filtering for Efficient and Accurate 4D Radar Odometry},
+  author    = {Unknown},
+  booktitle = {IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS)},
+  year      = {2024},
+  url       = {https://arxiv.org/abs/2405.09780},
+  % [TASK] Full 4D radar odometry using ego-velocity estimation
+  % [METHOD] Doppler-based ego-velocity filtering + scan matching. Learning-free.
+  %          Exploits per-point Doppler from 4D radar for robust velocity estimation.
+  % [INPUT] 4D radar point clouds with Doppler
+  % [KEY FINDING] Doppler-based velocity estimation is more robust than geometric ICP.
+  %              Learning-free approach competitive with learned methods.
+  % [RELEVANCE TO US] Validates Doppler-based ego-motion for frame registration.
+  % [GAP] 4D radar (not single-chip). Requires per-point Doppler (we have range-Doppler map).
+}
+
+@article{radarmoseve2024,
+  title     = {RadarMOSEVE: A Spatial-Temporal Transformer Network for Radar-Only Moving Object Segmentation and Ego-Velocity Estimation},
+  author    = {Unknown},
+  journal   = {arXiv preprint arXiv:2402.14380},
+  year      = {2024},
+  url       = {https://arxiv.org/html/2402.14380},
+  % [TASK] Joint moving object segmentation + ego-velocity from radar only
+  % [METHOD] Spatial-temporal transformer on consecutive radar point clouds.
+  %          Simultaneously segments moving objects and estimates ego-velocity.
+  % [INPUT] Consecutive radar point clouds
+  % [KEY FINDING] Joint estimation is mutually beneficial — knowing ego-motion helps
+  %              segment moving objects, knowing which objects move helps ego-motion.
+  % [RELEVANCE TO US] Shows radar-only ego-motion is viable with learned methods.
+  %   Joint formulation could extend to our Gaussian fusion (ego-motion + detection).
+  % [GAP] Point cloud input, not raw. Separate ego-velocity task, not integrated with
+  %        point cloud generation.
+}
+
+@inproceedings{2dicp_egomotion2024,
+  title     = {2D Ego-Motion with Yaw Estimation using Only mmWave Radars via Two-Way Weighted ICP},
+  author    = {Unknown},
+  booktitle = {arXiv preprint arXiv:2404.00830},
+  year      = {2024},
+  url       = {https://arxiv.org/html/2404.00830v1},
+  % [TASK] 2D ego-motion (translation + yaw) from single mmWave radar
+  % [METHOD] Weighted ICP on radar heatmap-derived points. Two-way weighting
+  %          for robustness to outliers and sparse matches.
+  % [INPUT] mmWave radar heatmaps (range-azimuth)
+  % [KEY FINDING] Single mmWave radar sufficient for 2D ego-motion in structured environments.
+  %              No IMU or wheel odometry required.
+  % [RELEVANCE TO US] Direct validation of radar-only ego-motion from single chip.
+  %   2D (translation + yaw) may be sufficient for our Gaussian frame registration.
+  % [GAP] 2D only (no elevation). Heatmap input, not raw I/Q.
+}
+
+% =============================================================================
+% mmWAVE RADAR FOR GPS-DENIED UAV NAVIGATION
+% =============================================================================
+
+@article{mmwave_uav_gnss2025,
+  title     = {3D Map and mmWave Radar-Based Self-Localization for UAVs in GNSS-Denied Environments},
+  author    = {Unknown},
+  journal   = {Defence Technology},
+  year      = {2025},
+  url       = {https://www.sciencedirect.com/science/article/abs/pii/S2214209625001135},
+  % [TASK] UAV self-localization using mmWave radar in GPS-denied environments
+  % [METHOD] Pre-built 3D map + mmWave radar matching for localization
+  % [INPUT] mmWave radar point cloud
+  % [KEY FINDING] mmWave radar viable for GPS-denied UAV navigation.
+  %              Pre-built map required for localization.
+  % [RELEVANCE TO US] Direct application of our work — if we can generate dense
+  %   lidar-quality point clouds from radar, this enables map-based localization
+  %   without lidar hardware. Our dense point clouds would improve their matching.
+  % [GAP] Uses sparse radar point clouds. Dense point clouds (our output) would
+  %        significantly improve localization accuracy.
+}
+
+@inproceedings{mmdrone2025,
+  title     = {6D Self-Localization of Drones using a Single Millimeter-Wave Radar},
+  author    = {Adib, Fadel and others},
+  booktitle = {IEEE INFOCOM},
+  year      = {2025},
+  url       = {https://www.mit.edu/~fadel/papers/mmDrone-infocom2025.pdf},
+  % [TASK] Full 6-DOF drone self-localization from single mmWave radar
+  % [METHOD] Exploits multipath reflections for 6D pose estimation
+  % [INPUT] Single mmWave radar on drone
+  % [KEY FINDING] Single mmWave radar sufficient for full 6-DOF localization.
+  %              Multipath (usually a nuisance) is exploited as a feature.
+  % [RELEVANCE TO US] Validates single-chip mmWave for drone navigation.
+  %   Our dense point clouds + their localization = complete radar-only nav stack.
+}
+
+@inproceedings{hybridrio2026,
+  title     = {Synchronized Multi-Directional FMCW mmWave Radar-Inertial Odometry},
+  author    = {Unknown},
+  journal   = {Drones},
+  year      = {2026},
+  doi       = {10.3390/drones10020120},
+  url       = {https://www.mdpi.com/2504-446X/10/2/120},
+  % [TASK] Indoor UAV navigation using mmWave radar + IMU fusion
+  % [METHOD] ESKF-based fusion of 4-directional FMCW radars + IMU.
+  %          Three-point RANSAC-LSQ for ego-velocity from radar.
+  % [INPUT] 4 FMCW mmWave radars + IMU
+  % [KEY FINDING] Radar ego-velocity via RANSAC-LSQ is robust. Vertical radar
+  %              for altitude beats barometer in disturbed airflow.
+  % [RELEVANCE TO US] Reference for radar-IMU fusion on drones.
+  %   We aim to reduce the 4 radars to 1 by using dense point clouds for matching.
+  % [GAP] 4 radars required. Our work enables single-radar by densifying output.
+}

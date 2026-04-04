@@ -37,7 +37,19 @@ from model.physics_frontend import PhysicsGaussianModel
 from train.loss_gaussian import gaussian_composite_loss
 from eval.eval_adapter import _chamfer_torch, _mod_hausdorff_torch
 
+SEED = 42
 K_PROTOTYPES = 64
+
+
+def set_seed(seed: int = SEED):
+    """Set all random seeds for reproducibility."""
+    import random
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
 
 # ---------------------------------------------------------------------------
@@ -112,6 +124,58 @@ def fit_prototypes(processed_dir: str, K: int = K_PROTOTYPES,
     print("Prototype fitting done.", flush=True)
 
 
+def fit_prototypes_fps(processed_dir: str, K: int = 96,
+                       all_trajs: list[int] | None = None):
+    """Pick K GT points per frame via farthest-point sampling (real geometry, no clustering).
+
+    Saves as proto_fps_{tid}.pt so both K-Means and FPS protos can coexist.
+
+    Args:
+        processed_dir: directory with lidar_{tid}.pt files
+        K: number of prototype points per frame
+        all_trajs: trajectory IDs to process
+    """
+    if all_trajs is None:
+        from data.split import ALL_TRAJS
+        all_trajs = ALL_TRAJS
+
+    for tid in all_trajs:
+        lidar_path = os.path.join(processed_dir, f"lidar_{tid}.pt")
+        if not os.path.exists(lidar_path):
+            continue
+
+        lidar = torch.load(lidar_path, weights_only=True).numpy()  # (N, 8192, 3)
+        N = lidar.shape[0]
+        protos = np.zeros((N, K, 2), dtype=np.float32)
+
+        for i in range(N):
+            xy = lidar[i, :, :2].astype(np.float64)
+            mask = (xy[:, 0] > 0) & (xy[:, 0] <= 10.8) & (np.abs(xy[:, 1]) <= 10.8)
+            xy = xy[mask]
+            if len(xy) < 2:
+                continue
+            if len(xy) <= K:
+                n_reps = K // len(xy) + 1
+                protos[i] = np.tile(xy, (n_reps, 1))[:K].astype(np.float32)
+                continue
+
+            # Farthest point sampling
+            selected = np.zeros(K, dtype=np.int64)
+            selected[0] = 0  # start from first point
+            dists = np.full(len(xy), np.inf)
+            for j in range(1, K):
+                d = np.sum((xy - xy[selected[j - 1]]) ** 2, axis=1)
+                dists = np.minimum(dists, d)
+                selected[j] = np.argmax(dists)
+            protos[i] = xy[selected].astype(np.float32)
+
+        out_path = os.path.join(processed_dir, f"proto_fps_{tid}.pt")
+        torch.save(torch.from_numpy(protos), out_path)
+        print(f"Traj {tid}: {N} frames -> {out_path} (FPS K={K})", flush=True)
+
+    print("FPS prototype fitting done.", flush=True)
+
+
 # ---------------------------------------------------------------------------
 # Datasets
 # ---------------------------------------------------------------------------
@@ -145,7 +209,7 @@ class AugmentedGaussianDataset(Dataset):
     """Windowed radar IQ + GT prototypes + full lidar with online augmentation."""
 
     def __init__(self, traj_id: int, processed_dir: str, window_size: int = 41,
-                 augment: bool = False):
+                 augment: bool = False, proto_method: str = "kmeans"):
         self.window_size = window_size
         self.augment = augment
         self.traj_id = traj_id
@@ -153,8 +217,9 @@ class AugmentedGaussianDataset(Dataset):
             os.path.join(processed_dir, f"radar_{traj_id}.pt"), weights_only=True)
         self.lidar = torch.load(
             os.path.join(processed_dir, f"lidar_{traj_id}.pt"), weights_only=True)
+        proto_file = f"proto_fps_{traj_id}.pt" if proto_method == "fps" else f"proto_{traj_id}.pt"
         self.protos = torch.load(
-            os.path.join(processed_dir, f"proto_{traj_id}.pt"), weights_only=True)
+            os.path.join(processed_dir, proto_file), weights_only=True)
         self.n_frames = self.radar.shape[0]
 
     def __len__(self):
@@ -176,7 +241,8 @@ class AugmentedGaussianDataset(Dataset):
 def build_dataloaders(processed_dir: str, train_trajs: list[int],
                       val_trajs: list[int], test_trajs: list[int],
                       window_size: int = 41, batch_size: int = 4,
-                      num_workers: int = 4, augment: bool = False) -> dict:
+                      num_workers: int = 4, augment: bool = False,
+                      proto_method: str = "kmeans") -> dict:
     """Build train/val/test DataLoaders for Gaussian training.
 
     Args:
@@ -186,10 +252,12 @@ def build_dataloaders(processed_dir: str, train_trajs: list[int],
         batch_size: DataLoader batch size
         num_workers: DataLoader worker processes
         augment: apply online augmentation to training data
+        proto_method: "kmeans" or "fps" — which prototype files to load
 
     Returns:
         dict with "train", "val", "test" DataLoaders (or None if no data)
     """
+    proto_prefix = "proto_fps_" if proto_method == "fps" else "proto_"
     split_configs = {
         "train": (train_trajs, True, augment),
         "val":   (val_trajs,   False, False),
@@ -199,9 +267,10 @@ def build_dataloaders(processed_dir: str, train_trajs: list[int],
     for split, (trajs, shuffle, aug) in split_configs.items():
         datasets = []
         for tid in trajs:
-            if os.path.exists(os.path.join(processed_dir, f"proto_{tid}.pt")):
+            if os.path.exists(os.path.join(processed_dir, f"{proto_prefix}{tid}.pt")):
                 datasets.append(AugmentedGaussianDataset(
-                    tid, processed_dir, window_size, augment=aug))
+                    tid, processed_dir, window_size, augment=aug,
+                    proto_method=proto_method))
         if datasets:
             loaders[split] = DataLoader(
                 ConcatDataset(datasets), batch_size=batch_size,
@@ -215,21 +284,23 @@ def build_dataloaders(processed_dir: str, train_trajs: list[int],
 # Training loop
 # ---------------------------------------------------------------------------
 
-def train_epoch(model, loader, optimizer, device, epoch, grad_clip=1.0):
+def train_epoch(model, loader, optimizer, device, epoch, grad_clip=1.0,
+                n_proto=K_PROTOTYPES, loss_kwargs=None):
     """Train one epoch. Returns (avg_loss, component_string)."""
     model.train()
     total_loss = 0
     loss_components = {}
     n_batches = 0
+    lkw = loss_kwargs or {}
 
     for radar, lidar, protos in loader:
         radar = radar.to(device)
         lidar_xy = lidar[:, :, :2].to(device)
         protos = protos.to(device)
-        n_gt = torch.full((radar.shape[0],), K_PROTOTYPES, device=device)
+        n_gt = torch.full((radar.shape[0],), n_proto, device=device)
 
         out = model(radar)
-        losses = gaussian_composite_loss(out, protos, lidar_xy, n_gt, epoch=epoch)
+        losses = gaussian_composite_loss(out, protos, lidar_xy, n_gt, epoch=epoch, **lkw)
 
         optimizer.zero_grad()
         losses["total"].backward()
@@ -278,17 +349,19 @@ def eval_points(model, loader, device, threshold=0.0):
 
 
 def eval_per_trajectory(model, processed_dir, traj_ids, device,
-                        window_size=41, threshold=0.3):
+                        window_size=41, threshold=0.3, proto_method="kmeans"):
     """Per-trajectory evaluation. Returns trajectory-level median mod-H."""
     model.eval()
     traj_modh = []
     traj_chamfer = []
+    proto_prefix = "proto_fps_" if proto_method == "fps" else "proto_"
 
     with torch.no_grad():
         for tid in traj_ids:
-            if not os.path.exists(os.path.join(processed_dir, f"proto_{tid}.pt")):
+            if not os.path.exists(os.path.join(processed_dir, f"{proto_prefix}{tid}.pt")):
                 continue
-            ds = AugmentedGaussianDataset(tid, processed_dir, window_size, augment=False)
+            ds = AugmentedGaussianDataset(tid, processed_dir, window_size, augment=False,
+                                           proto_method=proto_method)
             loader = DataLoader(ds, batch_size=1, shuffle=False)
 
             cd_list, mh_list = [], []
@@ -348,13 +421,31 @@ def main():
                         help="Azimuth bins in FFT frontend")
     parser.add_argument("--log-dir", default="logs/v2_gaussian")
     parser.add_argument("--processed-dir", default="data/processed")
+    # Loss tuning
+    parser.add_argument("--sigma-r-prior", type=float, default=0.3,
+                        help="Prior target for range uncertainty (metres)")
+    parser.add_argument("--sigma-perp-prior", type=float, default=0.3,
+                        help="Prior target for perpendicular uncertainty (metres)")
+    parser.add_argument("--huber-range-weight", type=float, default=0.1,
+                        help="Weight for Huber range loss (0 = disabled)")
+    # Prototype method
+    parser.add_argument("--proto-method", type=str, default="kmeans",
+                        choices=["kmeans", "fps"],
+                        help="GT prototype method: kmeans (cluster centers) or fps (real points)")
+    parser.add_argument("--K-proto", type=int, default=64,
+                        help="Number of GT prototypes per frame (for --fit-prototypes)")
     args = parser.parse_args()
+
+    set_seed(SEED)
 
     TRAIN_TRAJS, VAL_TRAJS, TEST_TRAJS, ALL_TRAJS = get_split(args.split)
 
     if args.fit_prototypes:
         print("Fitting GT prototypes...", flush=True)
-        fit_prototypes(args.processed_dir, K=K_PROTOTYPES, all_trajs=ALL_TRAJS)
+        if args.proto_method == "fps":
+            fit_prototypes_fps(args.processed_dir, K=args.K_proto, all_trajs=ALL_TRAJS)
+        else:
+            fit_prototypes(args.processed_dir, K=args.K_proto, all_trajs=ALL_TRAJS)
         return
 
     if not args.train:
@@ -382,15 +473,28 @@ def main():
         args.processed_dir, TRAIN_TRAJS, VAL_TRAJS, TEST_TRAJS,
         window_size=args.window_size, batch_size=args.batch_size,
         num_workers=4, augment=args.augment,
+        proto_method=args.proto_method,
     )
     print(f"Train samples: {len(loaders['train'].dataset)}", flush=True)
     if loaders["val"]:
         print(f"Val samples: {len(loaders['val'].dataset)}", flush=True)
+    print(f"Proto method: {args.proto_method}, sigma_r_prior: {args.sigma_r_prior}, "
+          f"sigma_perp_prior: {args.sigma_perp_prior}, huber_range: {args.huber_range_weight}",
+          flush=True)
+
+    # Loss kwargs for configurable priors and Huber range
+    loss_kwargs = {
+        "sigma_r_prior": args.sigma_r_prior,
+        "sigma_perp_prior": args.sigma_perp_prior,
+        "w_huber_range": args.huber_range_weight,
+    }
+    # Determine n_proto from proto files
+    n_proto = args.K_proto if args.proto_method == "fps" else K_PROTOTYPES
 
     os.makedirs(args.log_dir, exist_ok=True)
     config = vars(args)
     config["n_params"] = n_params
-    config["K_prototypes"] = K_PROTOTYPES
+    config["K_prototypes"] = n_proto
     config["train_trajs"] = TRAIN_TRAJS
     config["val_trajs"] = VAL_TRAJS
     config["test_trajs"] = TEST_TRAJS
@@ -401,14 +505,16 @@ def main():
     for epoch in range(args.epochs):
         t0 = time.time()
         train_loss, comp_str = train_epoch(
-            model, loaders["train"], optimizer, device, epoch)
+            model, loaders["train"], optimizer, device, epoch,
+            n_proto=n_proto, loss_kwargs=loss_kwargs)
         scheduler.step()
 
         # Per-trajectory val evaluation every 5 epochs (expensive)
         if loaders["val"] and (epoch % 5 == 0 or epoch == args.epochs - 1):
             val_metrics = eval_per_trajectory(
                 model, args.processed_dir, VAL_TRAJS, device,
-                args.window_size, threshold=0.3)
+                args.window_size, threshold=0.3,
+                proto_method=args.proto_method)
             val_mh = val_metrics["mod_h_traj_median"]
         else:
             val_mh = float("nan")
@@ -446,7 +552,8 @@ def main():
     for thresh in [0.0, 0.3, 0.5]:
         test_m = eval_per_trajectory(
             model, args.processed_dir, TEST_TRAJS, device,
-            args.window_size, threshold=thresh)
+            args.window_size, threshold=thresh,
+            proto_method=args.proto_method)
         print(f"  thresh={thresh:.1f}: mod-H traj_median={test_m['mod_h_traj_median']:.4f}, "
               f"traj_mean={test_m['mod_h_traj_mean']:.4f}, "
               f"traj_max={test_m['mod_h_traj_max']:.4f}, "
@@ -460,7 +567,8 @@ def main():
                               ("High-ID test", high_id_test)]:
             m = eval_per_trajectory(
                 model, args.processed_dir, trajs, device,
-                args.window_size, threshold=0.3)
+                args.window_size, threshold=0.3,
+                proto_method=args.proto_method)
             print(f"  {label:>14}: mod-H traj_median={m['mod_h_traj_median']:.4f}, "
                   f"chamfer={m['chamfer_traj_median']:.4f}", flush=True)
 
