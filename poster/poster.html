@@ -436,7 +436,7 @@
       <p>The original RadarHD pipeline discards critical information:</p>
       <ul>
         <li><strong>Phase discarded</strong> &mdash; magnitude-only PNGs lose angular encoding</li>
-        <li><strong>Dynamic range crushed</strong> &mdash; 60+ dB &rarr; 8-bit (48 dB)</li>
+        <li><strong>Dynamic range reduced</strong> &mdash; 60+ dB &rarr; 8-bit (48 dB)</li>
         <li><strong>Weak reflections lost</strong> &mdash; 5% magnitude threshold</li>
       </ul>
 
@@ -485,7 +485,7 @@
         <text x="590" y="270" text-anchor="middle" font-size="14" fill="#cc4444" font-weight="600">~30% information</text>
         <!-- X marks -->
         <line x1="490" y1="124" x2="690" y2="124" stroke="#cc4444" stroke-width="1.5" stroke-dasharray="4,3"/>
-        <text x="590" y="118" text-anchor="middle" font-size="11" fill="#cc4444">&#x2717; dynamic range crushed</text>
+        <text x="590" y="118" text-anchor="middle" font-size="11" fill="#cc4444">&#x2717; dynamic range reduced</text>
         <line x1="490" y1="100" x2="690" y2="100" stroke="#cc4444" stroke-width="1.5" stroke-dasharray="4,3"/>
         <text x="590" y="94" text-anchor="middle" font-size="11" fill="#cc4444">&#x2717; weak reflections lost</text>
         <!-- Our approach arrow -->
@@ -835,7 +835,7 @@
     <div class="section sec-eval">
       <h2>Evaluation Methodology</h2>
 
-      <p>All metrics computed on BEV point clouds (polar &rarr; Cartesian). <strong>Val-selected checkpoints only</strong> &mdash; no test-set peeking.</p>
+      <p>All metrics computed on BEV point clouds (polar &rarr; Cartesian). <strong>Val-selected checkpoints only</strong>.</p>
 
       <div class="metric-box">
         <h3>Chamfer Distance (Mean Error)</h3>
