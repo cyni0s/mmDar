@@ -443,47 +443,47 @@
 
       <!-- Information Loss Diagram -->
       <div class="grow" style="display: flex; align-items: center; justify-content: center;">
-      <svg viewBox="0 0 800 280" style="width: 100%; max-height: 3.5in;" xmlns="http://www.w3.org/2000/svg">
+      <svg viewBox="0 0 700 300" style="width: 100%;" xmlns="http://www.w3.org/2000/svg">
         <defs>
           <linearGradient id="iqGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#2ca02c"/><stop offset="100%" stop-color="#1a7a1a"/></linearGradient>
           <linearGradient id="fftGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#DD550C"/><stop offset="100%" stop-color="#b04009"/></linearGradient>
           <linearGradient id="pngGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#cc4444"/><stop offset="100%" stop-color="#993333"/></linearGradient>
         </defs>
-        <text x="400" y="22" text-anchor="middle" font-size="16" font-weight="700" fill="#03244d">INFORMATION RETAINED AT EACH PROCESSING STAGE</text>
-        <!-- Bars -->
-        <rect x="50" y="45" width="180" height="200" rx="6" fill="url(#iqGrad)" opacity="0.9"/>
-        <text x="140" y="155" text-anchor="middle" font-size="15" fill="#fff" font-weight="700">Raw Complex IQ</text>
-        <text x="140" y="175" text-anchor="middle" font-size="11" fill="rgba(255,255,255,0.8)">Phase + Amplitude</text>
-        <text x="140" y="193" text-anchor="middle" font-size="11" fill="rgba(255,255,255,0.8)">60+ dB dynamic range</text>
-        <text x="140" y="211" text-anchor="middle" font-size="11" fill="rgba(255,255,255,0.8)">All reflections</text>
-        <text x="140" y="260" text-anchor="middle" font-size="13" fill="#2ca02c" font-weight="600">100% info</text>
-        <!-- Arrow -->
-        <text x="255" y="150" font-size="22" fill="#999">&#x2192;</text>
-        <!-- FFT magnitude bar (shorter) -->
-        <rect x="290" y="85" width="180" height="160" rx="6" fill="url(#fftGrad)" opacity="0.9"/>
-        <text x="380" y="155" text-anchor="middle" font-size="15" fill="#fff" font-weight="700">FFT Magnitude</text>
-        <text x="380" y="175" text-anchor="middle" font-size="11" fill="rgba(255,255,255,0.8)">Phase LOST</text>
-        <text x="380" y="193" text-anchor="middle" font-size="11" fill="rgba(255,255,255,0.8)">60 dB retained (float32)</text>
-        <text x="380" y="260" text-anchor="middle" font-size="13" fill="#DD550C" font-weight="600">~65% info</text>
-        <!-- X marks what's lost -->
-        <line x1="290" y1="70" x2="470" y2="70" stroke="#DD550C" stroke-width="1.5" stroke-dasharray="4,3"/>
-        <text x="380" y="65" text-anchor="middle" font-size="10" fill="#DD550C">&#x2717; angular phase encoding</text>
-        <!-- Arrow -->
-        <text x="495" y="150" font-size="22" fill="#999">&#x2192;</text>
-        <!-- uint8 PNG bar (even shorter) -->
-        <rect x="530" y="135" width="180" height="110" rx="6" fill="url(#pngGrad)" opacity="0.9"/>
-        <text x="620" y="185" text-anchor="middle" font-size="15" fill="#fff" font-weight="700">uint8 PNG</text>
-        <text x="620" y="205" text-anchor="middle" font-size="11" fill="rgba(255,255,255,0.8)">48 dB only</text>
-        <text x="620" y="223" text-anchor="middle" font-size="11" fill="rgba(255,255,255,0.8)">5% threshold</text>
-        <text x="620" y="260" text-anchor="middle" font-size="13" fill="#cc4444" font-weight="600">~30% info</text>
+        <text x="350" y="22" text-anchor="middle" font-size="16" font-weight="700" fill="#03244d">INFORMATION RETAINED AT EACH PROCESSING STAGE</text>
+        <!-- Bar 1: Raw IQ (full height) -->
+        <rect x="10" y="45" width="200" height="210" rx="6" fill="url(#iqGrad)" opacity="0.9"/>
+        <text x="110" y="145" text-anchor="middle" font-size="16" fill="#fff" font-weight="700">Raw Complex IQ</text>
+        <text x="110" y="168" text-anchor="middle" font-size="12" fill="rgba(255,255,255,0.8)">Phase + Amplitude</text>
+        <text x="110" y="188" text-anchor="middle" font-size="12" fill="rgba(255,255,255,0.8)">60+ dB dynamic range</text>
+        <text x="110" y="208" text-anchor="middle" font-size="12" fill="rgba(255,255,255,0.8)">All reflections</text>
+        <text x="110" y="270" text-anchor="middle" font-size="14" fill="#2ca02c" font-weight="600">100% information</text>
+        <!-- Arrow 1 -->
+        <text x="222" y="155" font-size="24" fill="#999">&#x2192;</text>
+        <!-- Bar 2: FFT magnitude (shorter) -->
+        <rect x="250" y="85" width="200" height="170" rx="6" fill="url(#fftGrad)" opacity="0.9"/>
+        <text x="350" y="160" text-anchor="middle" font-size="16" fill="#fff" font-weight="700">FFT Magnitude</text>
+        <text x="350" y="183" text-anchor="middle" font-size="12" fill="rgba(255,255,255,0.8)">Phase LOST</text>
+        <text x="350" y="203" text-anchor="middle" font-size="12" fill="rgba(255,255,255,0.8)">60 dB retained (float32)</text>
+        <text x="350" y="270" text-anchor="middle" font-size="14" fill="#DD550C" font-weight="600">~65% information</text>
+        <!-- X mark -->
+        <line x1="250" y1="70" x2="450" y2="70" stroke="#DD550C" stroke-width="1.5" stroke-dasharray="4,3"/>
+        <text x="350" y="64" text-anchor="middle" font-size="11" fill="#DD550C">&#x2717; angular phase encoding lost</text>
+        <!-- Arrow 2 -->
+        <text x="462" y="155" font-size="24" fill="#999">&#x2192;</text>
+        <!-- Bar 3: uint8 PNG (shortest) -->
+        <rect x="490" y="140" width="200" height="115" rx="6" fill="url(#pngGrad)" opacity="0.9"/>
+        <text x="590" y="190" text-anchor="middle" font-size="16" fill="#fff" font-weight="700">uint8 PNG</text>
+        <text x="590" y="213" text-anchor="middle" font-size="12" fill="rgba(255,255,255,0.8)">48 dB only</text>
+        <text x="590" y="233" text-anchor="middle" font-size="12" fill="rgba(255,255,255,0.8)">5% threshold</text>
+        <text x="590" y="270" text-anchor="middle" font-size="14" fill="#cc4444" font-weight="600">~30% information</text>
         <!-- X marks -->
-        <line x1="530" y1="120" x2="710" y2="120" stroke="#cc4444" stroke-width="1.5" stroke-dasharray="4,3"/>
-        <text x="620" y="115" text-anchor="middle" font-size="10" fill="#cc4444">&#x2717; dynamic range crushed</text>
-        <line x1="530" y1="100" x2="710" y2="100" stroke="#cc4444" stroke-width="1.5" stroke-dasharray="4,3"/>
-        <text x="620" y="95" text-anchor="middle" font-size="10" fill="#cc4444">&#x2717; weak reflections lost</text>
+        <line x1="490" y1="124" x2="690" y2="124" stroke="#cc4444" stroke-width="1.5" stroke-dasharray="4,3"/>
+        <text x="590" y="118" text-anchor="middle" font-size="11" fill="#cc4444">&#x2717; dynamic range crushed</text>
+        <line x1="490" y1="100" x2="690" y2="100" stroke="#cc4444" stroke-width="1.5" stroke-dasharray="4,3"/>
+        <text x="590" y="94" text-anchor="middle" font-size="11" fill="#cc4444">&#x2717; weak reflections lost</text>
         <!-- Our approach arrow -->
-        <path d="M140 245 L140 275 L620 275 L620 250" fill="none" stroke="#2ca02c" stroke-width="2" stroke-dasharray="6,3"/>
-        <text x="380" y="272" text-anchor="middle" font-size="12" fill="#2ca02c" font-weight="600">OUR APPROACH: skip to raw IQ &#x2192; classical FFT &#x2192; learn residual</text>
+        <path d="M110 255 L110 290 L590 290 L590 260" fill="none" stroke="#2ca02c" stroke-width="2" stroke-dasharray="6,3"/>
+        <text x="350" y="286" text-anchor="middle" font-size="13" fill="#2ca02c" font-weight="600">OUR APPROACH: skip to raw IQ &#x2192; classical FFT &#x2192; learn residual</text>
       </svg>
       </div>
     </div>
