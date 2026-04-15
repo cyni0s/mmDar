@@ -382,11 +382,17 @@
 
   /* ===== SCREEN: scale to fit viewport ===== */
   @media screen {
-    html, body {
+    html {
       width: 100vw;
       height: 100vh;
-      overflow: hidden;
+      overflow: auto;
       background: #555;
+    }
+    body {
+      overflow: visible;
+      background: #555;
+      margin: 0;
+      padding: 0;
     }
   }
 
