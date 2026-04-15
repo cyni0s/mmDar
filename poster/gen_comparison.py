@@ -35,15 +35,7 @@ lidar_img = np.array(Image.open(LIDAR_PNG).convert("L")).astype(np.float32)
 # Enhance radar: log scale + viridis colormap to make returns visible
 radar_enhanced = np.log1p(radar_img)
 
-# ── Extract baseline prediction from the 3-panel plot ────────────────────────
-baseline_plot = np.array(Image.open(BASELINE_PLOT).convert("L")).astype(np.float32)
-# The baseline plot has 3 panels side by side with labels on top
-# Crop the middle panel (Prediction)
-h, w = baseline_plot.shape
-panel_w = w // 3
-# Skip ~40px header for labels
-header = 50
-baseline_pred = baseline_plot[header:, panel_w:2*panel_w]
+from matplotlib.patches import Ellipse
 
 # ── Run Gaussian model inference ─────────────────────────────────────────────
 from model.physics_frontend import PhysicsGaussianModel
@@ -98,14 +90,26 @@ radar_window = radar_pt[indices]  # (41, 8, 512) complex
 radar_batch = radar_window.unsqueeze(0).to(device)  # (1, 41, 8, 512)
 
 with torch.no_grad():
-    out = model(radar_batch)  # dict with 'mu_xy', 'existence', etc.
+    out = model(radar_batch)  # dict with 'mu_xy', 'mu_r', 'mu_phi', 'sigma_r', 'sigma_perp', 'existence'
     gaussian_pts_list = model.predict_points(radar_batch, threshold=0.3)
     gaussian_pts = gaussian_pts_list[0].cpu().numpy()  # (N, 2) — x, y
-    existence_prob = torch.sigmoid(out['existence'][0]).cpu().numpy()
+    existence_prob = torch.sigmoid(out['existence'][0]).cpu().numpy()  # (K,)
+    mu_xy = out['mu_xy'][0].cpu().numpy()  # (K, 2)
+    mu_r = out['mu_r'][0].cpu().numpy()  # (K,)
+    mu_phi = out['mu_phi'][0].cpu().numpy()  # (K,)
+    sigma_r = out['sigma_r'][0].cpu().numpy()  # (K,)
+    sigma_perp = out['sigma_perp'][0].cpu().numpy()  # (K,)
     n_above = (existence_prob > 0.3).sum()
 
 # Also get lidar GT points for this frame
 lidar_gt = lidar_pt[center].cpu().numpy()  # (M, 3) or (M, 2)
+
+# ── Auto-range from lidar GT ─────────────────────────────────────────────────
+if len(lidar_gt) > 0:
+    xmin, xmax = lidar_gt[:, 0].min() - 1, lidar_gt[:, 0].max() + 1
+    ymin, ymax = lidar_gt[:, 1].min() - 1, lidar_gt[:, 1].max() + 1
+else:
+    xmin, xmax, ymin, ymax = -12, 12, 0, 12
 
 # ── Create 4-panel figure ────────────────────────────────────────────────────
 fig, axes = plt.subplots(1, 4, figsize=(24, 6), facecolor="white")
@@ -118,29 +122,45 @@ ax.set_xlabel("Range Bin", fontsize=12)
 ax.set_ylabel("Azimuth Bin", fontsize=12)
 ax.tick_params(labelsize=10)
 
-# Panel 2: Baseline U-Net Prediction
+# Panel 2: Gaussian Ellipses (showing uncertainty before collapsing to points)
 ax = axes[1]
-ax.imshow(baseline_pred, cmap="gray", aspect="auto")
-ax.set_title("Baseline U-Net\n(17.5M params, PNGs)", fontsize=16, fontweight="bold", color="#666")
-ax.set_xlabel("Range Bin", fontsize=12)
-ax.set_ylabel("Azimuth Bin", fontsize=12)
-ax.tick_params(labelsize=10)
+ax.set_facecolor("black")
+mask = existence_prob > 0.3
+for i in range(len(mu_xy)):
+    if not mask[i]:
+        continue
+    x, y = mu_xy[i]
+    # Ellipse axes: sigma_perp is perpendicular to radial direction, sigma_r is radial
+    # Orientation: angle from mu_phi (radial direction)
+    angle_deg = np.degrees(mu_phi[i])
+    # 2-sigma ellipse (95% confidence)
+    w = 2 * sigma_perp[i] * 2  # width = perpendicular axis (2-sigma)
+    h = 2 * sigma_r[i] * 2     # height = radial axis (2-sigma)
+    alpha = min(1.0, existence_prob[i])
+    e = Ellipse((x, y), width=w, height=h, angle=angle_deg,
+                facecolor=ORANGE, edgecolor="white", linewidth=0.5,
+                alpha=alpha * 0.6)
+    ax.add_patch(e)
+    # Small dot at center
+    ax.plot(x, y, '.', color="white", markersize=2, alpha=alpha)
+ax.set_xlim(xmin, xmax)
+ax.set_ylim(ymin, ymax)
+ax.set_aspect("equal")
+ax.set_title(f"Gaussian Ellipses\n(2σ confidence, {n_above} active)", fontsize=16, fontweight="bold", color=ORANGE)
+ax.set_xlabel("X (m)", fontsize=12)
+ax.set_ylabel("Y (m)", fontsize=12)
+ax.tick_params(labelsize=10, colors="#999")
+ax.spines[:].set_color("#333")
 
-# Panel 3: Gaussian Model (Ours) — scatter plot of predicted points
+# Panel 3: Gaussian Points (centers only, after existence filtering)
 ax = axes[2]
 if len(gaussian_pts) > 0:
-    ax.scatter(gaussian_pts[:, 0], gaussian_pts[:, 1], s=6, c=ORANGE, alpha=0.9)
-# Auto-range from lidar GT
-if len(lidar_gt) > 0:
-    xmin, xmax = lidar_gt[:, 0].min() - 1, lidar_gt[:, 0].max() + 1
-    ymin, ymax = lidar_gt[:, 1].min() - 1, lidar_gt[:, 1].max() + 1
-else:
-    xmin, xmax, ymin, ymax = -12, 12, 0, 12
+    ax.scatter(gaussian_pts[:, 0], gaussian_pts[:, 1], s=8, c=ORANGE, alpha=0.9)
 ax.set_xlim(xmin, xmax)
 ax.set_ylim(ymin, ymax)
 ax.set_aspect("equal")
 ax.set_facecolor("black")
-ax.set_title(f"Ours: Gaussian\n(3.1M params, {n_above} points)", fontsize=16, fontweight="bold", color=ORANGE)
+ax.set_title(f"Gaussian Centers\n(3.1M params, {n_above} points)", fontsize=16, fontweight="bold", color=ORANGE)
 ax.set_xlabel("X (m)", fontsize=12)
 ax.set_ylabel("Y (m)", fontsize=12)
 ax.tick_params(labelsize=10, colors="#999")
