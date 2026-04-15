@@ -399,6 +399,7 @@
     }
     .poster {
       transform: none !important;
+      zoom: 1 !important;
       page-break-after: avoid;
       page-break-inside: avoid;
     }
@@ -994,6 +995,7 @@
 <!-- Auto-scale poster to fit browser viewport -->
 <script>
 function scalePoster() {
+  if (window.matchMedia('print').matches) return;
   var poster = document.getElementById('poster');
   var posterW = 40 * 96;
   var posterH = 30 * 96;
@@ -1002,6 +1004,9 @@ function scalePoster() {
   var scale = Math.min(scaleX, scaleY);
   poster.style.zoom = scale;
 }
+window.matchMedia('print').addEventListener('change', function(e) {
+  if (e.matches) document.getElementById('poster').style.zoom = '1';
+});
 window.addEventListener('resize', scalePoster);
 window.addEventListener('load', scalePoster);
 scalePoster();
