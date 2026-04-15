@@ -678,8 +678,6 @@
       <svg viewBox="0 0 900 560" style="width: 100%; flex: 1; margin: 0.06in 0;" xmlns="http://www.w3.org/2000/svg">
         <defs>
           <marker id="ah" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#999"/></marker>
-          <marker id="ahd" markerWidth="7" markerHeight="10" refX="3.5" refY="10" orient="auto"><polygon points="0 0, 7 0, 3.5 10" fill="#999"/></marker>
-          <marker id="ahu" markerWidth="7" markerHeight="10" refX="3.5" refY="0" orient="auto"><polygon points="0 10, 7 10, 3.5 0" fill="#999"/></marker>
         </defs>
 
         <!-- ===== LEFT SIDE (going DOWN) — Encoder path ===== -->
@@ -690,14 +688,16 @@
         <text x="200" y="60" text-anchor="middle" font-size="12" fill="#03244d" font-weight="700">Raw Complex IQ Input</text>
         <text x="200" y="78" text-anchor="middle" font-size="10" fill="#666">(8 antennas, 512 range bins) complex64 &#x00d7; 41 frames</text>
         <!-- Down arrow -->
-        <line x1="200" y1="93" x2="200" y2="108" stroke="#999" stroke-width="2" marker-end="url(#ahd)"/>
+        <line x1="200" y1="93" x2="200" y2="110" stroke="#999" stroke-width="2"/>
+        <polygon points="194,106 206,106 200,114" fill="#999"/>
 
         <!-- Classical FFT -->
         <rect x="55" y="115" width="290" height="60" rx="5" fill="#2ca02c" opacity="0.15" stroke="#2ca02c" stroke-width="2"/>
         <text x="200" y="140" text-anchor="middle" font-size="12" fill="#2ca02c" font-weight="700">Classical FFT Beamformer (FIXED)</text>
         <text x="200" y="158" text-anchor="middle" font-size="10" fill="#333">64 azimuth bins &mdash; no trainable weights &mdash; physics as input</text>
         <text x="360" y="150" text-anchor="start" font-size="9" fill="#2ca02c" font-weight="600">&#x2192; (82, 64, 512)</text>
-        <line x1="200" y1="175" x2="200" y2="190" stroke="#999" stroke-width="2" marker-end="url(#ahd)"/>
+        <line x1="200" y1="175" x2="200" y2="192" stroke="#999" stroke-width="2"/>
+        <polygon points="194,188 206,188 200,196" fill="#999"/>
 
         <!-- 2D Encoder container -->
         <rect x="30" y="197" width="340" height="280" rx="6" fill="#03244d" opacity="0.06" stroke="#03244d" stroke-width="1.5"/>
@@ -729,14 +729,16 @@
         <text x="200" y="433" text-anchor="middle" font-size="9" fill="#666">Spatial features: 8 &#x00d7; 64 &#x00d7; 128</text>
 
         <!-- ===== BOTTOM — Flatten + PE (the bend of the U) ===== -->
-        <line x1="200" y1="440" x2="200" y2="460" stroke="#999" stroke-width="2" marker-end="url(#ahd)"/>
+        <line x1="200" y1="440" x2="200" y2="462" stroke="#999" stroke-width="2"/>
+        <polygon points="194,458 206,458 200,466" fill="#999"/>
 
         <rect x="160" y="465" width="580" height="45" rx="5" fill="#e8edf3" stroke="#c0cad8" stroke-width="1.5"/>
         <text x="450" y="486" text-anchor="middle" font-size="12" fill="#03244d" font-weight="700">Flatten + 2D Positional Encoding</text>
         <text x="450" y="502" text-anchor="middle" font-size="10" fill="#666">8&#x00d7;64 = 512 spatial tokens, each 128-dim &mdash; 2D sinusoidal PE preserves spatial structure</text>
 
         <!-- Up arrow on right side -->
-        <line x1="700" y1="465" x2="700" y2="450" stroke="#999" stroke-width="2" marker-end="url(#ahu)"/>
+        <line x1="700" y1="465" x2="700" y2="448" stroke="#999" stroke-width="2"/>
+        <polygon points="694,452 706,452 700,444" fill="#999"/>
 
         <!-- ===== RIGHT SIDE (going UP) — Decoder path ===== -->
         <text x="700" y="22" text-anchor="middle" font-size="14" font-weight="700" fill="#DD550C">DECODER PATH</text>
@@ -753,7 +755,8 @@
         <rect x="715" y="104" width="140" height="30" rx="3" fill="#DD550C" opacity="0.15"/>
         <text x="785" y="123" text-anchor="middle" font-size="9" fill="#DD550C">&sigma;perp = f(range)</text>
         <!-- Up arrow -->
-        <line x1="700" y1="168" x2="700" y2="153" stroke="#999" stroke-width="2" marker-end="url(#ahu)"/>
+        <line x1="700" y1="170" x2="700" y2="157" stroke="#999" stroke-width="2"/>
+        <polygon points="694,161 706,161 700,153" fill="#999"/>
 
         <!-- DETR Decoder -->
         <rect x="530" y="170" width="340" height="270" rx="6" fill="#DD550C" opacity="0.08" stroke="#DD550C" stroke-width="2"/>
