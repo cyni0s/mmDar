@@ -26,7 +26,6 @@
     flex-direction: column;
     overflow: hidden;
     background: #f7f7f7;
-    transform-origin: top left;
   }
 
   /* ===== TITLE BAR ===== */
@@ -63,6 +62,7 @@
   /* ===== BODY GRID ===== */
   .body {
     flex: 1;
+    min-height: 0;
     display: grid;
     grid-template-columns: 1fr 1.5fr 1fr;
     grid-template-rows: 1fr 1fr;
@@ -382,14 +382,7 @@
 
   /* ===== SCREEN: scale to fit viewport ===== */
   @media screen {
-    html {
-      width: 100vw;
-      height: 100vh;
-      overflow: auto;
-      background: #555;
-    }
-    body {
-      overflow: visible;
+    html, body {
       background: #555;
       margin: 0;
       padding: 0;
@@ -995,16 +988,12 @@
 <script>
 function scalePoster() {
   var poster = document.getElementById('poster');
-  // 40in * 96dpi = 3840px, 30in * 96dpi = 2880px
   var posterW = 40 * 96;
   var posterH = 30 * 96;
   var scaleX = window.innerWidth / posterW;
   var scaleY = window.innerHeight / posterH;
   var scale = Math.min(scaleX, scaleY);
-  poster.style.transform = 'scale(' + scale + ')';
-  // Shrink the layout box to match the visual size so no scrollbars appear
-  document.body.style.width = (posterW * scale) + 'px';
-  document.body.style.height = (posterH * scale) + 'px';
+  poster.style.zoom = scale;
 }
 window.addEventListener('resize', scalePoster);
 window.addEventListener('load', scalePoster);
