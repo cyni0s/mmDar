@@ -441,7 +441,7 @@
         <li><strong>Weak reflections lost</strong> &mdash; 5% magnitude threshold</li>
       </ul>
 
-      <h3>Our Core Change</h3>
+      <h3>Core Change</h3>
       <p>Move from <em>preprocessed magnitude PNGs</em> to <strong>raw complex IQ data</strong>, making the model <strong>physics-informed</strong>: classical FFT beamforming as input features, network learns only the residual improvement and enable <strong style="color: #03244d;">real-time processing</strong>.</p>
 
       <div class="callout" style="margin-top: 0.1in;">
@@ -642,7 +642,7 @@
           <td>Original paper result</td>
         </tr>
         <tr>
-          <td>Our Baseline (U-Net)</td>
+          <td>Baseline (U-Net)</td>
           <td>PNGs &times;41</td>
           <td>17.5M</td>
           <td>0.406</td>
@@ -870,7 +870,7 @@
 
       <div class="metric-box" style="border-left-color: #DD550C;">
         <h3>Why Multiple Metrics?</h3>
-        <p>Chamfer measures <em>mean</em> quality. mod-H measures <em>worst-case</em>. IoU/F1 measure <em>detection</em>. A model that sprays points scores well on Chamfer but poorly on mod-H. Our Gaussian model improves <strong>all metrics simultaneously</strong>.</p>
+        <p>Chamfer measures <em>mean</em> quality. mod-H measures <em>worst-case</em>. IoU/F1 measure <em>detection</em>. A model that sprays points scores well on Chamfer but poorly on mod-H. The Gaussian model improves <strong>all metrics simultaneously</strong>.</p>
       </div>
 
       <!-- Metric Visualization -->
@@ -941,7 +941,7 @@
           <td>17.5M</td>
         </tr>
         <tr>
-          <td>Our Baseline (U-Net)</td>
+          <td>Baseline (U-Net)</td>
           <td>0.406</td>
           <td>0.296</td>
           <td>17.5M</td>
@@ -953,7 +953,7 @@
           <td>27.5M</td>
         </tr>
         <tr class="ours">
-          <td>Ours (Gaussian)</td>
+          <td>mmDar (Gaussian)</td>
           <td>0.318</td>
           <td>0.230</td>
           <td>3.1M</td>
