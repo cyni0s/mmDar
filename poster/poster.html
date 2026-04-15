@@ -675,11 +675,11 @@
 
       <!-- Detailed Architecture Diagram — U-shape -->
       <h3>Final Architecture: Physics-First 2D Gaussian Set Decoder</h3>
-      <svg viewBox="0 0 900 520" style="width: 100%; flex: 1; margin: 0.06in 0;" xmlns="http://www.w3.org/2000/svg">
+      <svg viewBox="0 0 900 560" style="width: 100%; flex: 1; margin: 0.06in 0;" xmlns="http://www.w3.org/2000/svg">
         <defs>
-          <marker id="ah" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#999"/></marker>
-          <marker id="ahd" markerWidth="8" markerHeight="6" refX="3" refY="0" orient="auto"><polygon points="0 0, 6 0, 3 8" fill="#999"/></marker>
-          <marker id="ahu" markerWidth="8" markerHeight="6" refX="3" refY="8" orient="auto"><polygon points="0 8, 6 8, 3 0" fill="#999"/></marker>
+          <marker id="ah" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#999"/></marker>
+          <marker id="ahd" markerWidth="7" markerHeight="10" refX="3.5" refY="10" orient="auto"><polygon points="0 0, 7 0, 3.5 10" fill="#999"/></marker>
+          <marker id="ahu" markerWidth="7" markerHeight="10" refX="3.5" refY="0" orient="auto"><polygon points="0 10, 7 10, 3.5 0" fill="#999"/></marker>
         </defs>
 
         <!-- ===== LEFT SIDE (going DOWN) — Encoder path ===== -->
@@ -753,7 +753,7 @@
         <rect x="715" y="104" width="140" height="30" rx="3" fill="#DD550C" opacity="0.15"/>
         <text x="785" y="123" text-anchor="middle" font-size="9" fill="#DD550C">&sigma;perp = f(range)</text>
         <!-- Up arrow -->
-        <line x1="700" y1="153" x2="700" y2="168" stroke="#999" stroke-width="2"/>
+        <line x1="700" y1="168" x2="700" y2="153" stroke="#999" stroke-width="2" marker-end="url(#ahu)"/>
 
         <!-- DETR Decoder -->
         <rect x="530" y="170" width="340" height="270" rx="6" fill="#DD550C" opacity="0.08" stroke="#DD550C" stroke-width="2"/>
@@ -784,10 +784,9 @@
         <!-- Loss detail bar at bottom right -->
         <rect x="530" y="445" width="340" height="3" rx="1" fill="#DD550C"/>
 
-        <!-- Total params label -->
-        <rect x="260" y="465" width="200" height="3" rx="1" fill="#DD550C"/>
-        <rect x="300" y="475" width="300" height="30" rx="5" fill="#DD550C"/>
-        <text x="450" y="495" text-anchor="middle" font-size="13" fill="#fff" font-weight="700">3.1M total parameters (5.6&#x00d7; smaller than baseline)</text>
+        <!-- Total params label — below the Flatten box -->
+        <rect x="250" y="525" width="400" height="30" rx="5" fill="#DD550C"/>
+        <text x="450" y="545" text-anchor="middle" font-size="13" fill="#fff" font-weight="700">3.1M total parameters (5.6&#x00d7; smaller than baseline)</text>
       </svg>
 
       <div class="callout">
