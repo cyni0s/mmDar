@@ -37,9 +37,9 @@ ORANGE = "#DD550C"
 # Grouped bar colors: [Chamfer, mod-H] per method
 BAR_COLORS = {
     "Published RadarHD":            ("#888888", "#aaaaaa"),
-    "Our Baseline\n(U-Net, 17.5M)": ("#888888", "#aaaaaa"),
+    "Baseline\n(U-Net, 17.5M)":     ("#888888", "#aaaaaa"),
     "ConvLSTM\n(Temporal)":         ("#cc4444", "#dd7777"),
-    "Ours: Gaussian\n(3.1M)":       (ORANGE,    NAVY),
+    "mmDar: Gaussian\n(3.1M)":      (ORANGE,    NAVY),
 }
 
 # ---------------------------------------------------------------------------
@@ -65,9 +65,9 @@ matplotlib.rcParams.update({
 # ---------------------------------------------------------------------------
 METHODS = [
     "Published RadarHD",
-    "Our Baseline\n(U-Net, 17.5M)",
+    "Baseline\n(U-Net, 17.5M)",
     "ConvLSTM\n(Temporal)",
-    "Ours: Gaussian\n(3.1M)",
+    "mmDar: Gaussian\n(3.1M)",
 ]
 
 CHAMFER    = [0.360, 0.406, 0.603, 0.280]
