@@ -12,11 +12,9 @@
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
   html, body {
-    width: 40in;
-    height: 30in;
     font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
     color: #333333;
-    background: #f7f7f7;
+    background: #888;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
@@ -27,37 +25,39 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    background: #f7f7f7;
+    transform-origin: top left;
   }
 
   /* ===== TITLE BAR ===== */
   .title-bar {
     background: #03244d;
-    padding: 0.5in 0.6in;
+    padding: 0.4in 0.6in;
     display: flex;
     align-items: center;
     gap: 0.4in;
     border-bottom: 0.08in solid #DD550C;
   }
   .title-bar .logo {
-    height: 1.6in;
+    height: 1.4in;
     width: auto;
   }
   .title-bar .title-text h1 {
     color: #ffffff;
-    font-size: 60pt;
+    font-size: 56pt;
     font-weight: 700;
     line-height: 1.15;
-    margin-bottom: 0.12in;
+    margin-bottom: 0.1in;
   }
   .title-bar .authors {
     color: #DD550C;
-    font-size: 28pt;
+    font-size: 26pt;
     font-weight: 500;
   }
   .title-bar .affiliation {
     color: rgba(255,255,255,0.7);
-    font-size: 22pt;
-    margin-top: 0.06in;
+    font-size: 20pt;
+    margin-top: 0.05in;
   }
 
   /* ===== BODY GRID ===== */
@@ -71,34 +71,41 @@
 
   /* ===== SECTIONS ===== */
   .section {
-    padding: 0.35in 0.4in;
+    padding: 0.3in 0.35in;
     border: 1px solid #ddd;
     overflow: hidden;
   }
   .section h2 {
-    font-size: 32pt;
+    font-size: 28pt;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 1px;
-    margin-bottom: 0.2in;
-    padding-bottom: 0.1in;
+    margin-bottom: 0.15in;
+    padding-bottom: 0.08in;
     border-bottom: 4px solid #DD550C;
     color: #03244d;
   }
+  .section h3 {
+    font-size: 18pt;
+    font-weight: 700;
+    color: #03244d;
+    margin-top: 0.12in;
+    margin-bottom: 0.06in;
+  }
   .section p {
-    font-size: 20pt;
-    line-height: 1.45;
+    font-size: 17pt;
+    line-height: 1.4;
     color: #333333;
-    margin-bottom: 0.12in;
+    margin-bottom: 0.08in;
   }
   .section ul {
-    padding-left: 0.3in;
-    margin-bottom: 0.12in;
+    padding-left: 0.25in;
+    margin-bottom: 0.08in;
   }
   .section li {
-    font-size: 20pt;
-    line-height: 1.45;
-    margin-bottom: 0.06in;
+    font-size: 17pt;
+    line-height: 1.4;
+    margin-bottom: 0.04in;
   }
   .section strong { color: #03244d; }
 
@@ -110,7 +117,7 @@
   }
   .hero h2 {
     border-bottom-color: #03244d;
-    font-size: 34pt;
+    font-size: 30pt;
   }
 
   /* Section backgrounds */
@@ -123,24 +130,25 @@
   .pipeline {
     display: flex;
     align-items: center;
-    gap: 0.1in;
-    margin: 0.18in 0;
+    gap: 0.08in;
+    margin: 0.12in 0;
   }
   .pipe-block {
     background: #e8edf3;
     border: 1.5px solid #c0cad8;
-    padding: 0.1in 0.14in;
+    padding: 0.08in 0.1in;
     border-radius: 4px;
     text-align: center;
-    font-size: 15pt;
+    font-size: 13pt;
     font-weight: 500;
     color: #03244d;
     line-height: 1.3;
   }
   .pipe-block small {
-    font-size: 12pt;
+    font-size: 10pt;
     font-weight: 400;
     color: #666666;
+    display: block;
   }
   .pipe-block.highlight {
     background: #DD550C;
@@ -154,18 +162,18 @@
     color: #a03030;
   }
   .pipe-arrow {
-    font-size: 22pt;
+    font-size: 18pt;
     color: #999999;
   }
   .pipe-label {
-    font-size: 18pt;
+    font-size: 16pt;
     font-weight: 600;
-    margin-top: 0.18in;
-    margin-bottom: 0.04in;
+    margin-top: 0.14in;
+    margin-bottom: 0.03in;
   }
   .pipe-note {
-    font-size: 15pt;
-    margin-top: 0.04in;
+    font-size: 13pt;
+    margin-top: 0.03in;
     font-style: italic;
   }
   .pipe-note.good { color: #2a7d2a; }
@@ -175,24 +183,24 @@
   .stat-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 0.1in;
-    margin: 0.15in 0;
+    gap: 0.08in;
+    margin: 0.1in 0;
   }
   .stat {
     background: #f0f0f0;
-    padding: 0.12in;
+    padding: 0.08in;
     border-radius: 4px;
     text-align: center;
     border-left: 4px solid #DD550C;
   }
   .stat .num {
-    font-size: 40pt;
+    font-size: 34pt;
     font-weight: 800;
     color: #DD550C;
     line-height: 1.1;
   }
   .stat .label {
-    font-size: 14pt;
+    font-size: 12pt;
     color: #666666;
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -202,21 +210,21 @@
   .results-table {
     width: 100%;
     border-collapse: collapse;
-    margin: 0.15in 0;
+    margin: 0.1in 0;
   }
   .results-table th {
     background: #03244d;
     color: #ffffff;
-    padding: 0.08in 0.12in;
+    padding: 0.06in 0.1in;
     text-align: center;
-    font-size: 17pt;
+    font-size: 14pt;
     font-weight: 600;
   }
   .results-table th:first-child { text-align: left; }
   .results-table td {
-    padding: 0.08in 0.12in;
+    padding: 0.05in 0.1in;
     text-align: center;
-    font-size: 17pt;
+    font-size: 14pt;
     border-bottom: 1px solid #e0e0e0;
   }
   .results-table td:first-child { text-align: left; font-weight: 500; }
@@ -229,57 +237,68 @@
     border-bottom: 3px solid #DD550C;
   }
   .results-table tr.negative td { color: #a03030; }
+  .results-table tr.section-header td {
+    background: #f0f4f8;
+    font-weight: 600;
+    color: #03244d;
+    font-size: 12pt;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 2px solid #03244d;
+    padding: 0.04in 0.1in;
+  }
 
   /* ===== METRIC BOXES ===== */
   .metric-box {
     background: #f0f0f0;
     border-radius: 4px;
-    padding: 0.15in 0.2in;
-    margin-bottom: 0.12in;
+    padding: 0.12in 0.16in;
+    margin-bottom: 0.08in;
     border-left: 4px solid #03244d;
   }
   .metric-box h3 {
-    font-size: 20pt;
+    font-size: 16pt;
     color: #03244d;
-    margin-bottom: 0.06in;
+    margin-bottom: 0.04in;
+    margin-top: 0;
   }
   .metric-box p {
-    font-size: 16pt !important;
+    font-size: 13pt !important;
     margin-bottom: 0 !important;
   }
   .metric-box .formula {
     font-family: "Times New Roman", "Georgia", serif;
     font-style: italic;
     color: #03244d;
-    font-size: 20pt;
-    margin: 0.08in 0;
+    font-size: 16pt;
+    margin: 0.05in 0;
     text-align: center;
   }
 
   /* ===== KEY FINDINGS BANNER ===== */
   .key-findings {
     display: flex;
-    gap: 0.15in;
-    margin: 0.15in 0;
+    gap: 0.12in;
+    margin: 0.12in 0;
   }
   .finding {
     flex: 1;
     background: #03244d;
     color: #ffffff;
-    padding: 0.15in;
+    padding: 0.1in;
     border-radius: 4px;
     text-align: center;
   }
   .finding .big {
-    font-size: 44pt;
+    font-size: 36pt;
     font-weight: 800;
     color: #DD550C;
     line-height: 1.1;
   }
   .finding .desc {
-    font-size: 14pt;
+    font-size: 12pt;
     color: rgba(255,255,255,0.8);
-    margin-top: 0.04in;
+    margin-top: 0.03in;
   }
 
   /* ===== CALLOUT BOX ===== */
@@ -287,23 +306,50 @@
     background: #f8f4ef;
     border: 1.5px solid #e8d8c4;
     border-radius: 4px;
-    padding: 0.2in 0.25in;
-    margin: 0.18in 0;
+    padding: 0.14in 0.18in;
+    margin: 0.12in 0;
   }
   .callout h3 {
-    font-size: 18pt;
+    font-size: 15pt;
     font-weight: 700;
     color: #03244d;
-    margin-bottom: 0.06in;
+    margin-bottom: 0.04in;
+    margin-top: 0;
   }
   .callout p {
-    font-size: 16pt !important;
+    font-size: 13pt !important;
     margin-bottom: 0 !important;
   }
 
+  /* ===== ITERATION TABLE ===== */
+  .iter-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0.1in 0;
+    font-size: 12pt;
+  }
+  .iter-table th {
+    background: #03244d;
+    color: #fff;
+    padding: 0.05in 0.08in;
+    text-align: center;
+    font-size: 12pt;
+  }
+  .iter-table th:first-child { text-align: left; }
+  .iter-table td {
+    padding: 0.04in 0.08in;
+    text-align: center;
+    border-bottom: 1px solid #e0e0e0;
+    font-size: 12pt;
+  }
+  .iter-table td:first-child { text-align: left; font-weight: 500; }
+  .iter-table tr.best { background: #fff5ee; font-weight: 600; }
+  .iter-table tr.best td { color: #DD550C; }
+  .iter-table tr.fail td { color: #a03030; }
+
   /* ===== FIGURES ===== */
   .figure {
-    margin: 0.1in 0;
+    margin: 0.08in 0;
     text-align: center;
   }
   .figure img {
@@ -317,14 +363,24 @@
   /* ===== FOOTER ===== */
   .footer {
     background: #03244d;
-    padding: 0.2in 0.6in;
+    padding: 0.15in 0.6in;
     display: flex;
     justify-content: space-between;
     align-items: center;
     color: rgba(255,255,255,0.7);
-    font-size: 14pt;
+    font-size: 13pt;
   }
   .footer strong { color: #DD550C; }
+
+  /* ===== SCREEN: scale to fit viewport ===== */
+  @media screen {
+    html, body {
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background: #555;
+    }
+  }
 
   /* ===== PRINT ===== */
   @media print {
@@ -332,8 +388,10 @@
       width: 40in;
       height: 30in;
       overflow: hidden;
+      background: none;
     }
     .poster {
+      transform: none !important;
       page-break-after: avoid;
       page-break-inside: avoid;
     }
@@ -341,7 +399,7 @@
 </style>
 </head>
 <body>
-<div class="poster">
+<div class="poster" id="poster">
 
   <!-- TITLE BAR -->
   <div class="title-bar">
@@ -356,116 +414,217 @@
   <!-- BODY -->
   <div class="body">
 
-    <!-- 1. PROBLEM (left top) -->
+    <!-- 1. PROBLEM & APPROACH (left top) -->
     <div class="section sec-problem">
-      <h2>Problem &amp; Motivation</h2>
-      <p><strong>mmWave radar</strong> (77 GHz FMCW) offers all-weather, low-cost 3D sensing — but angular resolution is fundamentally limited by small antenna arrays: 8 virtual elements yield only ~14° Rayleigh resolution.</p>
-      <p>Existing approaches discard radar phase information by converting to magnitude-only images, losing the signal physics that encodes angular position.</p>
-      <p><strong>Goal:</strong> Transform sparse radar returns into dense, lidar-quality BEV point clouds using <em>physics-informed</em> machine learning that preserves signal structure.</p>
-      <div class="figure">
-        <img src="assets/teaser.png" alt="Radar vs Lidar comparison" style="width: 100%; border-radius: 4px;">
+      <h2>Problem &amp; Approach</h2>
+      <p><strong>mmWave radar</strong> (77 GHz FMCW) offers all-weather, low-cost 3D sensing but angular resolution is limited: 8 virtual antennas yield ~14&deg; Rayleigh resolution.</p>
+      <p>The original RadarHD pipeline discards critical information:</p>
+      <ul>
+        <li><strong>Phase discarded</strong> &mdash; magnitude-only PNGs lose angular encoding</li>
+        <li><strong>Dynamic range crushed</strong> &mdash; 60+ dB &rarr; 8-bit (48 dB)</li>
+        <li><strong>Weak reflections lost</strong> &mdash; 5% magnitude threshold</li>
+      </ul>
+
+      <h3>Our Core Change</h3>
+      <p>Move from <em>preprocessed magnitude PNGs</em> to <strong>raw complex IQ data</strong>, making the model <strong>physics-informed</strong>: classical FFT beamforming as input features, network learns only the residual improvement.</p>
+
+      <div class="callout" style="margin-top: 0.1in;">
+        <h3>Physics as Input, Not Loss</h3>
+        <p>The FFT beamformer provides the physics baseline. The network learns what physics <em>cannot</em> resolve &mdash; improving angular localization beyond the Rayleigh limit for sparse targets.</p>
       </div>
     </div>
 
     <!-- 2. DATASET (left bottom) -->
     <div class="section sec-dataset">
       <h2>Dataset</h2>
-      <p>Paired <strong>TI AWR1843</strong> 77 GHz FMCW radar and <strong>Velodyne VLP-16</strong> lidar, synchronized per-frame, from the RadarHD dataset.</p>
+      <p>Paired <strong>TI AWR1843</strong> 77 GHz FMCW radar + <strong>Velodyne VLP-16</strong> lidar, synchronized per-frame (RadarHD dataset).</p>
       <div class="stat-grid">
         <div class="stat"><div class="num">42k</div><div class="label">Paired Frames</div></div>
         <div class="stat"><div class="num">44</div><div class="label">Trajectories</div></div>
         <div class="stat"><div class="num">8</div><div class="label">Virtual Antennas</div></div>
         <div class="stat"><div class="num">512</div><div class="label">Range Bins</div></div>
       </div>
-      <p><strong>Split:</strong> 17 train / 8 validation / 19 test trajectories<br>
-      <strong>Test set:</strong> 18,575 frames — sealed evaluation, val-selected checkpoints only (no test-set peeking)</p>
-      <div class="figure">
-        <img src="assets/samples/sample1.png" alt="Sample BEV visualization" style="width: 100%; border-radius: 4px;">
-      </div>
+      <p><strong>Split:</strong> 17 train / 8 val / 19 test trajectories<br>
+      <strong>Test set:</strong> 18,575 frames &mdash; sealed, val-selected checkpoints only</p>
+      <p><strong>Input format:</strong> Raw complex IQ (8 antennas &times; 512 range bins, complex64) after range FFT and TDM-MIMO Doppler compensation. 41-frame temporal stacking.</p>
+      <p><strong>Ground truth:</strong> Lidar BEV point clouds projected to polar coordinates for direct comparison.</p>
     </div>
 
-    <!-- 3. ARCHITECTURES (center hero) -->
+    <!-- 3. MODEL ARCHITECTURES (center hero) -->
     <div class="section hero">
-      <h2>Model Architectures Compared</h2>
-      <div class="pipe-label">A. Baseline: Asymmetric U-Net on Magnitude Images (RadarHD)</div>
+      <h2>Model Architecture Iterations</h2>
+
+      <p style="font-size: 15pt; margin-bottom: 0.1in;">We systematically explored architectures, moving from preprocessed images to raw radar data with physics-informed design. Each iteration informed the next.</p>
+
+      <div class="pipe-label">Baseline: Asymmetric U-Net on Magnitude PNGs (RadarHD)</div>
       <div class="pipeline">
         <div class="pipe-block">Raw IQ<br><small>complex128</small></div>
-        <div class="pipe-arrow">→</div>
-        <div class="pipe-block">FFT + |·|<br><small>magnitude only</small></div>
-        <div class="pipe-arrow">→</div>
-        <div class="pipe-block">uint8 PNG<br><small>41 frames stacked</small></div>
-        <div class="pipe-arrow">→</div>
-        <div class="pipe-block">Asymmetric U-Net<br><small>17.5M parameters</small></div>
-        <div class="pipe-arrow">→</div>
-        <div class="pipe-block">BEV Point Cloud</div>
+        <div class="pipe-arrow">&rarr;</div>
+        <div class="pipe-block">FFT + |&middot;|<br><small>magnitude</small></div>
+        <div class="pipe-arrow">&rarr;</div>
+        <div class="pipe-block">uint8 PNG<br><small>41 frames</small></div>
+        <div class="pipe-arrow">&rarr;</div>
+        <div class="pipe-block">U-Net<br><small>17.5M params</small></div>
+        <div class="pipe-arrow">&rarr;</div>
+        <div class="pipe-block">BEV Points</div>
       </div>
-      <div class="pipe-note bad">✗ Phase discarded &nbsp; ✗ Dynamic range crushed (60 dB → 48 dB) &nbsp; ✗ Weak reflections lost at 5% threshold</div>
 
-      <div class="pipe-label" style="color: #DD550C;">B. Ours: Physics-Informed Gaussian Model</div>
+      <div class="pipe-label" style="color: #DD550C;">Final: Physics-Informed Gaussian Set Decoder</div>
       <div class="pipeline">
         <div class="pipe-block">Raw IQ<br><small>complex64</small></div>
-        <div class="pipe-arrow">→</div>
+        <div class="pipe-arrow">&rarr;</div>
         <div class="pipe-block">Classical FFT<br><small>fixed weights</small></div>
-        <div class="pipe-arrow">→</div>
-        <div class="pipe-block">2D Encoder<br><small>ResBlocks + Down</small></div>
-        <div class="pipe-arrow">→</div>
-        <div class="pipe-block highlight">DETR Decoder<br><small>96 learnable queries</small></div>
-        <div class="pipe-arrow">→</div>
-        <div class="pipe-block">Gaussian Head<br><small>μ, σ per point</small></div>
-        <div class="pipe-arrow">→</div>
-        <div class="pipe-block">BEV Point Cloud</div>
+        <div class="pipe-arrow">&rarr;</div>
+        <div class="pipe-block">2D Encoder<br><small>ResBlocks</small></div>
+        <div class="pipe-arrow">&rarr;</div>
+        <div class="pipe-block highlight">DETR Decoder<br><small>96 queries</small></div>
+        <div class="pipe-arrow">&rarr;</div>
+        <div class="pipe-block">Gaussian Head<br><small>&mu;, &sigma; per point</small></div>
+        <div class="pipe-arrow">&rarr;</div>
+        <div class="pipe-block">BEV Points</div>
       </div>
-      <div class="pipe-note good">✓ Physics preserved (FFT as input, learn the delta) &nbsp; ✓ Uncertainty quantified &nbsp; ✓ 3.1M params (5.6× smaller)</div>
+
+      <h3>All Iterations &amp; Results</h3>
+      <table class="iter-table">
+        <tr>
+          <th>Model / Iteration</th>
+          <th>Input</th>
+          <th>Params</th>
+          <th>Chamfer &darr;</th>
+          <th>Mod-H &darr;</th>
+          <th>Key Finding</th>
+        </tr>
+        <tr>
+          <td>Published RadarHD</td>
+          <td>PNGs</td>
+          <td>17.5M</td>
+          <td>0.360</td>
+          <td>0.240</td>
+          <td>Original paper result</td>
+        </tr>
+        <tr>
+          <td>Our Baseline (U-Net)</td>
+          <td>PNGs &times;41</td>
+          <td>17.5M</td>
+          <td>0.406</td>
+          <td>0.296</td>
+          <td>Honest val-selected eval</td>
+        </tr>
+        <tr class="fail">
+          <td>ConvLSTM Temporal</td>
+          <td>PNGs seq.</td>
+          <td>27.5M</td>
+          <td>0.603</td>
+          <td>&mdash;</td>
+          <td>Temporal fusion too late; 2&times; worse</td>
+        </tr>
+        <tr>
+          <td>Raw IQ Mag+Phase</td>
+          <td>IQ &times;1</td>
+          <td>~2M</td>
+          <td>0.309</td>
+          <td>0.423</td>
+          <td>Phase helps Chamfer; single-frame limit</td>
+        </tr>
+        <tr>
+          <td>Temporal Cross-Attn</td>
+          <td>FFT &times;8</td>
+          <td>2.2M</td>
+          <td>0.295</td>
+          <td>0.429</td>
+          <td>Matched baseline Chamfer; mod-H gap</td>
+        </tr>
+        <tr class="fail">
+          <td>Physics-Informed Loss</td>
+          <td>FFT</td>
+          <td>&mdash;</td>
+          <td>14.5</td>
+          <td>&mdash;</td>
+          <td>Diverged &mdash; competing gradients</td>
+        </tr>
+        <tr>
+          <td>Gaussian (8 frames)</td>
+          <td>IQ &times;8</td>
+          <td>1.6M</td>
+          <td>0.421</td>
+          <td>0.345</td>
+          <td>Hungarian NLL &gt; Chamfer for mod-H</td>
+        </tr>
+        <tr>
+          <td>Gaussian (41 frames)</td>
+          <td>IQ &times;41</td>
+          <td>4.6M</td>
+          <td>0.356</td>
+          <td>0.278</td>
+          <td>Temporal context adds 19% mod-H gain</td>
+        </tr>
+        <tr class="best">
+          <td>Physics-First 2D Gaussian</td>
+          <td>FFT 2D &times;41</td>
+          <td>3.1M</td>
+          <td>0.318</td>
+          <td>0.230</td>
+          <td>Best: FFT as input + DETR + Gaussian</td>
+        </tr>
+        <tr class="fail">
+          <td>LISTA + U-Net Occupancy</td>
+          <td>FFT features</td>
+          <td>~3M</td>
+          <td>1.281</td>
+          <td>1.844</td>
+          <td>Beamformer is information bottleneck</td>
+        </tr>
+      </table>
 
       <div class="callout">
-        <h3>Key Innovation: Physics as Input, Not Loss</h3>
-        <p>The classical FFT beamformer provides the physics baseline as <em>input features</em> — the neural network learns only the residual improvement, what the FFT cannot resolve. Hungarian NLL loss ensures one-to-one point assignment, preventing point spray. Heteroscedastic σ scales with range (angular uncertainty × distance), matching radar physics.</p>
+        <h3>Key Architectural Lessons</h3>
+        <p><strong>1.</strong> Classical physics (FFT) as input features outperforms both learning from scratch and learning through physics losses. <strong>2.</strong> Gaussian set output with Hungarian NLL produces better worst-case precision than occupancy grids. <strong>3.</strong> Temporal context helps when fused early (channel stacking), not late (ConvLSTM after downsampling). <strong>4.</strong> Heteroscedastic &sigma; scaling with range matches the physics of angular uncertainty.</p>
       </div>
-
-      <div class="pipe-label" style="color: #a03030;">C. ConvLSTM Temporal Model (Negative Result)</div>
-      <div class="pipeline">
-        <div class="pipe-block">PNG Frames<br><small>sequential</small></div>
-        <div class="pipe-arrow">→</div>
-        <div class="pipe-block">CNN Encoder<br><small>downsample 8×</small></div>
-        <div class="pipe-arrow">→</div>
-        <div class="pipe-block bad">ConvLSTM<br><small>temporal fusion</small></div>
-        <div class="pipe-arrow">→</div>
-        <div class="pipe-block">CNN Decoder</div>
-        <div class="pipe-arrow">→</div>
-        <div class="pipe-block">BEV Point Cloud</div>
-      </div>
-      <div class="pipe-note bad">✗ Chamfer 0.603m — 2× worse than baseline. Temporal fusion after heavy downsampling destroys spatial precision. <strong>Lesson:</strong> spatial resolution is the bottleneck, not temporal context.</div>
     </div>
 
     <!-- 4. EVALUATION (right top) -->
     <div class="section sec-eval">
       <h2>Evaluation Methodology</h2>
+
+      <p style="font-size: 14pt; margin-bottom: 0.06in;">All metrics computed on BEV point clouds (polar &rarr; Cartesian). <strong>Val-selected checkpoints only</strong> &mdash; no test-set peeking.</p>
+
       <div class="metric-box">
         <h3>Chamfer Distance (Mean Error)</h3>
-        <div class="formula">CD = ½ [ Σ min‖p−q‖ + Σ min‖q−p‖ ]</div>
-        <p>Average bidirectional nearest-neighbor distance. Measures <strong>overall coverage</strong> — are predicted points close to ground truth on average?</p>
+        <div class="formula">CD = &frac12; [ &Sigma; min&Vert;p&minus;q&Vert; + &Sigma; min&Vert;q&minus;p&Vert; ]</div>
+        <p>Average bidirectional nearest-neighbor distance. Measures <strong>coverage</strong>.</p>
       </div>
 
       <div class="metric-box">
         <h3>Modified Hausdorff (Worst-Case)</h3>
-        <div class="formula">MH = P₉₅( min‖p−q‖ )</div>
-        <p>95th percentile of nearest-neighbor distances. Penalizes <strong>outliers and gaps</strong> — no single predicted point should be far from ground truth.</p>
+        <div class="formula">MH = max( median(NN<sub>A&rarr;B</sub>), median(NN<sub>B&rarr;A</sub>) )</div>
+        <p>Median of nearest-neighbor distances, max direction. Penalizes <strong>outliers and gaps</strong>.</p>
+      </div>
+
+      <div class="metric-box">
+        <h3>IoU &amp; F1 (Polar Grid)</h3>
+        <p>Binary classification on 256&times;512 polar grid. IoU measures overlap of occupied cells; F1 balances precision and recall of detections.</p>
+      </div>
+
+      <div class="metric-box">
+        <h3>Precision / Recall @ 0.1m</h3>
+        <p><strong>Precision:</strong> fraction of predicted points within 0.1m of any GT point. <strong>Recall:</strong> fraction of GT points with a prediction within 0.1m. Threshold-based point-level accuracy.</p>
       </div>
 
       <div class="metric-box" style="border-left-color: #DD550C;">
-        <h3>Why Both Metrics?</h3>
-        <p>Chamfer optimizes for <em>mean</em> (coverage). mod-Hausdorff optimizes for <em>precision</em>. A model that sprays points everywhere scores well on Chamfer but poorly on Hausdorff. Our Gaussian model improves <strong>both</strong>.</p>
+        <h3>Why Multiple Metrics?</h3>
+        <p>Chamfer measures <em>mean</em> quality. mod-H measures <em>worst-case</em>. IoU/F1 measure <em>detection</em>. A model that sprays points scores well on Chamfer but poorly on mod-H. Our Gaussian model improves <strong>all metrics simultaneously</strong>.</p>
       </div>
     </div>
 
     <!-- 5. RESULTS (right bottom) -->
     <div class="section sec-results">
-      <h2>Results</h2>
+      <h2>Results &amp; Conclusions</h2>
+
       <table class="results-table">
         <tr>
           <th>Model</th>
-          <th>Chamfer ↓</th>
-          <th>Mod-H ↓</th>
+          <th>Chamfer &darr;</th>
+          <th>Mod-H &darr;</th>
           <th>Params</th>
         </tr>
         <tr>
@@ -481,15 +640,15 @@
           <td>17.5M</td>
         </tr>
         <tr class="negative">
-          <td>ConvLSTM</td>
+          <td>ConvLSTM Temporal</td>
           <td>0.603</td>
-          <td>—</td>
-          <td>—</td>
+          <td>&mdash;</td>
+          <td>27.5M</td>
         </tr>
         <tr class="ours">
           <td>Ours (Gaussian)</td>
-          <td>0.280</td>
-          <td>0.205</td>
+          <td>0.318</td>
+          <td>0.230</td>
           <td>3.1M</td>
         </tr>
       </table>
@@ -500,8 +659,12 @@
           <div class="desc">Lower Chamfer &amp; mod-H<br>vs. honest baseline</div>
         </div>
         <div class="finding">
-          <div class="big">5.6×</div>
+          <div class="big">5.6&times;</div>
           <div class="desc">Fewer parameters<br>(3.1M vs 17.5M)</div>
+        </div>
+        <div class="finding">
+          <div class="big">Raw IQ</div>
+          <div class="desc">vs. preprocessed PNGs<br>preserves phase info</div>
         </div>
       </div>
 
@@ -509,18 +672,32 @@
         <img src="assets/comparison.png" alt="Model comparison bar chart" style="width: 100%; border-radius: 4px;">
       </div>
 
-      <p style="margin-top: 0.12in;"><strong>Conclusions:</strong> Physics as input (FFT) outperforms learning from magnitude images. Temporal modeling hurts when applied after spatial downsampling. Gaussian output with Hungarian matching produces cleaner, sparser point clouds.</p>
-      <p><strong>Future work:</strong> Complex-valued neural networks operating directly on raw antenna IQ data — preserving phase through the entire pipeline.</p>
+      <p><strong>Conclusions:</strong> Physics-informed input (classical FFT) outperforms learning from magnitude images. Gaussian set output with Hungarian NLL matching produces cleaner predictions than occupancy grids. 10 architecture iterations revealed that <em>where</em> you fuse temporal context matters more than <em>whether</em> you fuse it.</p>
+      <p><strong>Future:</strong> Complex-valued neural networks on raw antenna IQ &mdash; preserving phase through the entire pipeline.</p>
     </div>
 
   </div>
 
   <!-- FOOTER -->
   <div class="footer">
-    <div><strong>[1]</strong> Rebut et al., &ldquo;RadarHD: High Resolution Point Clouds from a Radar,&rdquo; ICRA 2023 &nbsp;&nbsp; <strong>[2]</strong> Zhu et al., &ldquo;mmPoint,&rdquo; BMVC 2023 &nbsp;&nbsp; <strong>[3]</strong> Carion et al., &ldquo;DETR,&rdquo; ECCV 2020</div>
+    <div><strong>[1]</strong> Rebut et al., &ldquo;RadarHD,&rdquo; ICRA 2023 &nbsp;&nbsp; <strong>[2]</strong> Zhu et al., &ldquo;mmPoint,&rdquo; BMVC 2023 &nbsp;&nbsp; <strong>[3]</strong> Carion et al., &ldquo;DETR,&rdquo; ECCV 2020 &nbsp;&nbsp; <strong>[4]</strong> TI AWR1843 Technical Reference</div>
     <div><strong>Auburn University</strong> &bull; ELEC 6970 &bull; Spring 2026</div>
   </div>
 
 </div>
+
+<!-- Auto-scale poster to fit browser viewport -->
+<script>
+function scalePoster() {
+  var poster = document.getElementById('poster');
+  var scaleX = window.innerWidth / (40 * 96); // 40in * 96dpi
+  var scaleY = window.innerHeight / (30 * 96);
+  var scale = Math.min(scaleX, scaleY);
+  poster.style.transform = 'scale(' + scale + ')';
+}
+window.addEventListener('resize', scalePoster);
+window.addEventListener('load', scalePoster);
+scalePoster();
+</script>
 </body>
 </html>
