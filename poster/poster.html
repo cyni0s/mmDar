@@ -989,10 +989,16 @@
 <script>
 function scalePoster() {
   var poster = document.getElementById('poster');
-  var scaleX = window.innerWidth / (40 * 96); // 40in * 96dpi
-  var scaleY = window.innerHeight / (30 * 96);
+  // 40in * 96dpi = 3840px, 30in * 96dpi = 2880px
+  var posterW = 40 * 96;
+  var posterH = 30 * 96;
+  var scaleX = window.innerWidth / posterW;
+  var scaleY = window.innerHeight / posterH;
   var scale = Math.min(scaleX, scaleY);
   poster.style.transform = 'scale(' + scale + ')';
+  // Shrink the layout box to match the visual size so no scrollbars appear
+  document.body.style.width = (posterW * scale) + 'px';
+  document.body.style.height = (posterH * scale) + 'px';
 }
 window.addEventListener('resize', scalePoster);
 window.addEventListener('load', scalePoster);
