@@ -436,6 +436,52 @@
         <h3>Physics as Input, Not Loss</h3>
         <p>The FFT beamformer provides the physics baseline. The network learns what physics <em>cannot</em> resolve &mdash; improving angular localization beyond the Rayleigh limit for sparse targets.</p>
       </div>
+
+      <!-- Information Loss Diagram -->
+      <div class="grow" style="display: flex; align-items: center; justify-content: center;">
+      <svg viewBox="0 0 800 280" style="width: 100%; max-height: 3.5in;" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="iqGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#2ca02c"/><stop offset="100%" stop-color="#1a7a1a"/></linearGradient>
+          <linearGradient id="fftGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#DD550C"/><stop offset="100%" stop-color="#b04009"/></linearGradient>
+          <linearGradient id="pngGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#cc4444"/><stop offset="100%" stop-color="#993333"/></linearGradient>
+        </defs>
+        <text x="400" y="22" text-anchor="middle" font-size="16" font-weight="700" fill="#03244d">INFORMATION RETAINED AT EACH PROCESSING STAGE</text>
+        <!-- Bars -->
+        <rect x="50" y="45" width="180" height="200" rx="6" fill="url(#iqGrad)" opacity="0.9"/>
+        <text x="140" y="155" text-anchor="middle" font-size="15" fill="#fff" font-weight="700">Raw Complex IQ</text>
+        <text x="140" y="175" text-anchor="middle" font-size="11" fill="rgba(255,255,255,0.8)">Phase + Amplitude</text>
+        <text x="140" y="193" text-anchor="middle" font-size="11" fill="rgba(255,255,255,0.8)">60+ dB dynamic range</text>
+        <text x="140" y="211" text-anchor="middle" font-size="11" fill="rgba(255,255,255,0.8)">All reflections</text>
+        <text x="140" y="260" text-anchor="middle" font-size="13" fill="#2ca02c" font-weight="600">100% info</text>
+        <!-- Arrow -->
+        <text x="255" y="150" font-size="22" fill="#999">&#x2192;</text>
+        <!-- FFT magnitude bar (shorter) -->
+        <rect x="290" y="85" width="180" height="160" rx="6" fill="url(#fftGrad)" opacity="0.9"/>
+        <text x="380" y="155" text-anchor="middle" font-size="15" fill="#fff" font-weight="700">FFT Magnitude</text>
+        <text x="380" y="175" text-anchor="middle" font-size="11" fill="rgba(255,255,255,0.8)">Phase LOST</text>
+        <text x="380" y="193" text-anchor="middle" font-size="11" fill="rgba(255,255,255,0.8)">60 dB retained (float32)</text>
+        <text x="380" y="260" text-anchor="middle" font-size="13" fill="#DD550C" font-weight="600">~65% info</text>
+        <!-- X marks what's lost -->
+        <line x1="290" y1="70" x2="470" y2="70" stroke="#DD550C" stroke-width="1.5" stroke-dasharray="4,3"/>
+        <text x="380" y="65" text-anchor="middle" font-size="10" fill="#DD550C">&#x2717; angular phase encoding</text>
+        <!-- Arrow -->
+        <text x="495" y="150" font-size="22" fill="#999">&#x2192;</text>
+        <!-- uint8 PNG bar (even shorter) -->
+        <rect x="530" y="135" width="180" height="110" rx="6" fill="url(#pngGrad)" opacity="0.9"/>
+        <text x="620" y="185" text-anchor="middle" font-size="15" fill="#fff" font-weight="700">uint8 PNG</text>
+        <text x="620" y="205" text-anchor="middle" font-size="11" fill="rgba(255,255,255,0.8)">48 dB only</text>
+        <text x="620" y="223" text-anchor="middle" font-size="11" fill="rgba(255,255,255,0.8)">5% threshold</text>
+        <text x="620" y="260" text-anchor="middle" font-size="13" fill="#cc4444" font-weight="600">~30% info</text>
+        <!-- X marks -->
+        <line x1="530" y1="120" x2="710" y2="120" stroke="#cc4444" stroke-width="1.5" stroke-dasharray="4,3"/>
+        <text x="620" y="115" text-anchor="middle" font-size="10" fill="#cc4444">&#x2717; dynamic range crushed</text>
+        <line x1="530" y1="100" x2="710" y2="100" stroke="#cc4444" stroke-width="1.5" stroke-dasharray="4,3"/>
+        <text x="620" y="95" text-anchor="middle" font-size="10" fill="#cc4444">&#x2717; weak reflections lost</text>
+        <!-- Our approach arrow -->
+        <path d="M140 245 L140 275 L620 275 L620 250" fill="none" stroke="#2ca02c" stroke-width="2" stroke-dasharray="6,3"/>
+        <text x="380" y="272" text-anchor="middle" font-size="12" fill="#2ca02c" font-weight="600">OUR APPROACH: skip to raw IQ &#x2192; classical FFT &#x2192; learn residual</text>
+      </svg>
+      </div>
     </div>
 
     <!-- 2. DATASET (left bottom) -->
@@ -452,6 +498,53 @@
       <strong>Test set:</strong> 18,575 frames &mdash; sealed, val-selected checkpoints only</p>
       <p><strong>Input format:</strong> Raw complex IQ (8 antennas &times; 512 range bins, complex64) after range FFT and TDM-MIMO Doppler compensation. 41-frame temporal stacking.</p>
       <p><strong>Ground truth:</strong> Lidar BEV point clouds projected to polar coordinates for direct comparison.</p>
+
+      <!-- Data Pipeline Diagram -->
+      <svg viewBox="0 0 700 220" style="width: 100%; margin-top: 0.08in;" xmlns="http://www.w3.org/2000/svg">
+        <text x="350" y="18" text-anchor="middle" font-size="14" font-weight="700" fill="#03244d">DATA PROCESSING PIPELINE</text>
+        <!-- Radar side -->
+        <rect x="10" y="35" width="130" height="70" rx="5" fill="#03244d"/>
+        <text x="75" y="62" text-anchor="middle" font-size="11" fill="#fff" font-weight="600">TI AWR1843</text>
+        <text x="75" y="78" text-anchor="middle" font-size="9" fill="#DD550C">77 GHz FMCW</text>
+        <text x="75" y="92" text-anchor="middle" font-size="9" fill="rgba(255,255,255,0.7)">4 RX × 2 TX</text>
+        <text x="155" y="73" font-size="16" fill="#999">&#x2192;</text>
+        <rect x="170" y="35" width="110" height="70" rx="5" fill="#e8edf3" stroke="#c0cad8"/>
+        <text x="225" y="60" text-anchor="middle" font-size="10" fill="#03244d" font-weight="600">Range FFT</text>
+        <text x="225" y="76" text-anchor="middle" font-size="9" fill="#666">512 bins</text>
+        <text x="225" y="90" text-anchor="middle" font-size="9" fill="#666">complex64</text>
+        <text x="295" y="73" font-size="16" fill="#999">&#x2192;</text>
+        <rect x="310" y="35" width="110" height="70" rx="5" fill="#e8edf3" stroke="#c0cad8"/>
+        <text x="365" y="56" text-anchor="middle" font-size="10" fill="#03244d" font-weight="600">TDM-MIMO</text>
+        <text x="365" y="72" text-anchor="middle" font-size="10" fill="#03244d" font-weight="600">Compensation</text>
+        <text x="365" y="90" text-anchor="middle" font-size="9" fill="#666">&#x2192; 8 virtual ant.</text>
+        <text x="435" y="73" font-size="16" fill="#999">&#x2192;</text>
+        <rect x="450" y="30" width="120" height="80" rx="5" fill="#DD550C" opacity="0.15" stroke="#DD550C"/>
+        <text x="510" y="58" text-anchor="middle" font-size="11" fill="#DD550C" font-weight="700">Model Input</text>
+        <text x="510" y="76" text-anchor="middle" font-size="9" fill="#333">(8, 512) complex</text>
+        <text x="510" y="90" text-anchor="middle" font-size="9" fill="#333">&#x00d7; 41 frames</text>
+        <!-- Lidar side -->
+        <rect x="10" y="130" width="130" height="70" rx="5" fill="#03244d"/>
+        <text x="75" y="158" text-anchor="middle" font-size="11" fill="#fff" font-weight="600">Velodyne VLP-16</text>
+        <text x="75" y="174" text-anchor="middle" font-size="9" fill="#DD550C">16-beam lidar</text>
+        <text x="75" y="188" text-anchor="middle" font-size="9" fill="rgba(255,255,255,0.7)">100m range</text>
+        <text x="155" y="168" font-size="16" fill="#999">&#x2192;</text>
+        <rect x="170" y="130" width="110" height="70" rx="5" fill="#e8edf3" stroke="#c0cad8"/>
+        <text x="225" y="158" text-anchor="middle" font-size="10" fill="#03244d" font-weight="600">BEV Projection</text>
+        <text x="225" y="174" text-anchor="middle" font-size="9" fill="#666">3D &#x2192; 2D top-down</text>
+        <text x="295" y="168" font-size="16" fill="#999">&#x2192;</text>
+        <rect x="310" y="130" width="110" height="70" rx="5" fill="#e8edf3" stroke="#c0cad8"/>
+        <text x="365" y="158" text-anchor="middle" font-size="10" fill="#03244d" font-weight="600">Polar Transform</text>
+        <text x="365" y="174" text-anchor="middle" font-size="9" fill="#666">256 az &#x00d7; 512 range</text>
+        <text x="435" y="168" font-size="16" fill="#999">&#x2192;</text>
+        <rect x="450" y="125" width="120" height="80" rx="5" fill="#2ca02c" opacity="0.15" stroke="#2ca02c"/>
+        <text x="510" y="153" text-anchor="middle" font-size="11" fill="#2ca02c" font-weight="700">Ground Truth</text>
+        <text x="510" y="171" text-anchor="middle" font-size="9" fill="#333">BEV point cloud</text>
+        <text x="510" y="185" text-anchor="middle" font-size="9" fill="#333">in polar coords</text>
+        <!-- Sync arrow -->
+        <line x1="600" y1="70" x2="600" y2="165" stroke="#03244d" stroke-width="1.5" stroke-dasharray="4,3"/>
+        <rect x="585" y="105" width="105" height="25" rx="3" fill="#03244d"/>
+        <text x="637" y="122" text-anchor="middle" font-size="10" fill="#fff" font-weight="600">synchronized</text>
+      </svg>
     </div>
 
     <!-- 3. MODEL ARCHITECTURES (center hero) -->
@@ -580,9 +673,100 @@
         </tr>
       </table>
 
+      <!-- Detailed Architecture Diagram -->
+      <h3>Final Architecture: Physics-First 2D Gaussian Set Decoder</h3>
+      <svg viewBox="0 0 1100 260" style="width: 100%; margin: 0.06in 0;" xmlns="http://www.w3.org/2000/svg">
+        <!-- Input -->
+        <rect x="5" y="70" width="85" height="120" rx="4" fill="#e8edf3" stroke="#c0cad8"/>
+        <text x="47" y="110" text-anchor="middle" font-size="10" fill="#03244d" font-weight="600">Raw IQ</text>
+        <text x="47" y="125" text-anchor="middle" font-size="8" fill="#666">(8, 512)</text>
+        <text x="47" y="138" text-anchor="middle" font-size="8" fill="#666">complex64</text>
+        <text x="47" y="155" text-anchor="middle" font-size="8" fill="#666">&#x00d7; 41 frames</text>
+        <!-- Arrow -->
+        <line x1="90" y1="130" x2="110" y2="130" stroke="#999" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+        <defs><marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#999"/></marker></defs>
+
+        <!-- Classical FFT -->
+        <rect x="115" y="60" width="100" height="140" rx="4" fill="#2ca02c" opacity="0.15" stroke="#2ca02c" stroke-width="1.5"/>
+        <text x="165" y="85" text-anchor="middle" font-size="10" fill="#2ca02c" font-weight="700">Classical FFT</text>
+        <text x="165" y="100" text-anchor="middle" font-size="8" fill="#333">Fixed weights</text>
+        <text x="165" y="115" text-anchor="middle" font-size="8" fill="#333">64 az bins</text>
+        <rect x="125" y="125" width="80" height="22" rx="3" fill="#2ca02c" opacity="0.2"/>
+        <text x="165" y="140" text-anchor="middle" font-size="8" fill="#2ca02c">NO training</text>
+        <text x="165" y="168" text-anchor="middle" font-size="8" fill="#666">Out: (82, 64, 512)</text>
+        <text x="165" y="182" text-anchor="middle" font-size="7" fill="#999">41fr &#x00d7; 2ch = 82</text>
+        <line x1="215" y1="130" x2="235" y2="130" stroke="#999" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+
+        <!-- 2D Encoder -->
+        <rect x="240" y="40" width="160" height="180" rx="4" fill="#03244d" opacity="0.08" stroke="#03244d"/>
+        <text x="320" y="62" text-anchor="middle" font-size="10" fill="#03244d" font-weight="700">2D Encoder</text>
+        <!-- Encoder blocks -->
+        <rect x="255" y="72" width="130" height="28" rx="3" fill="#e8edf3" stroke="#c0cad8"/>
+        <text x="320" y="90" text-anchor="middle" font-size="8" fill="#03244d">ResBlock2d (64, 512) &#x2192; 128ch</text>
+        <text x="320" y="105" text-anchor="middle" font-size="7" fill="#999">&#x2193; stride-2</text>
+        <rect x="255" y="110" width="130" height="28" rx="3" fill="#e8edf3" stroke="#c0cad8"/>
+        <text x="320" y="128" text-anchor="middle" font-size="8" fill="#03244d">DownBlock (32, 256) &#x2192; 128ch</text>
+        <text x="320" y="143" text-anchor="middle" font-size="7" fill="#999">&#x2193; stride-2</text>
+        <rect x="255" y="148" width="130" height="28" rx="3" fill="#e8edf3" stroke="#c0cad8"/>
+        <text x="320" y="166" text-anchor="middle" font-size="8" fill="#03244d">DownBlock (16, 128) &#x2192; 128ch</text>
+        <text x="320" y="181" text-anchor="middle" font-size="7" fill="#999">&#x2193; stride-2</text>
+        <rect x="255" y="186" width="130" height="28" rx="3" fill="#e8edf3" stroke="#c0cad8"/>
+        <text x="320" y="204" text-anchor="middle" font-size="8" fill="#03244d">DownBlock (8, 64) &#x2192; 128ch</text>
+        <line x1="400" y1="130" x2="420" y2="130" stroke="#999" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+
+        <!-- Flatten + PE -->
+        <rect x="425" y="80" width="75" height="100" rx="4" fill="#e8edf3" stroke="#c0cad8"/>
+        <text x="462" y="110" text-anchor="middle" font-size="9" fill="#03244d" font-weight="600">Flatten</text>
+        <text x="462" y="125" text-anchor="middle" font-size="8" fill="#666">+ 2D Pos</text>
+        <text x="462" y="138" text-anchor="middle" font-size="8" fill="#666">Encoding</text>
+        <text x="462" y="155" text-anchor="middle" font-size="7" fill="#999">512 tokens</text>
+        <line x1="500" y1="130" x2="520" y2="130" stroke="#999" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+
+        <!-- DETR Decoder -->
+        <rect x="525" y="35" width="160" height="190" rx="4" fill="#DD550C" opacity="0.12" stroke="#DD550C" stroke-width="2"/>
+        <text x="605" y="58" text-anchor="middle" font-size="11" fill="#DD550C" font-weight="700">DETR Decoder</text>
+        <!-- Learnable queries -->
+        <rect x="540" y="66" width="130" height="22" rx="3" fill="#DD550C" opacity="0.25"/>
+        <text x="605" y="81" text-anchor="middle" font-size="8" fill="#DD550C" font-weight="600">96 Learnable Queries</text>
+        <!-- Cross-attention layers -->
+        <rect x="540" y="95" width="130" height="26" rx="3" fill="#fff" stroke="#DD550C"/>
+        <text x="605" y="112" text-anchor="middle" font-size="8" fill="#DD550C">Cross-Attention Layer 1</text>
+        <rect x="540" y="126" width="130" height="26" rx="3" fill="#fff" stroke="#DD550C"/>
+        <text x="605" y="143" text-anchor="middle" font-size="8" fill="#DD550C">Cross-Attention Layer 2</text>
+        <rect x="540" y="157" width="130" height="26" rx="3" fill="#fff" stroke="#DD550C"/>
+        <text x="605" y="174" text-anchor="middle" font-size="8" fill="#DD550C">Cross-Attention Layer 3</text>
+        <text x="605" y="206" text-anchor="middle" font-size="8" fill="#666">Q: queries, K/V: tokens</text>
+        <line x1="685" y1="130" x2="705" y2="130" stroke="#999" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+
+        <!-- Gaussian Head -->
+        <rect x="710" y="50" width="130" height="170" rx="4" fill="#03244d" opacity="0.08" stroke="#03244d"/>
+        <text x="775" y="72" text-anchor="middle" font-size="10" fill="#03244d" font-weight="700">Gaussian Head</text>
+        <text x="775" y="88" text-anchor="middle" font-size="8" fill="#666">Per-query MLP</text>
+        <!-- Output params -->
+        <rect x="722" y="98" width="106" height="18" rx="2" fill="#e8edf3"/><text x="775" y="111" text-anchor="middle" font-size="8" fill="#03244d">&mu;<tspan font-size="6" dy="2">r</tspan><tspan dy="-2">, &mu;</tspan><tspan font-size="6" dy="2">&phi;</tspan><tspan dy="-2"> (position)</tspan></text>
+        <rect x="722" y="120" width="106" height="18" rx="2" fill="#e8edf3"/><text x="775" y="133" text-anchor="middle" font-size="8" fill="#03244d">&sigma;<tspan font-size="6" dy="2">r</tspan><tspan dy="-2"> (range uncert.)</tspan></text>
+        <rect x="722" y="142" width="106" height="18" rx="2" fill="#e8edf3"/><text x="775" y="155" text-anchor="middle" font-size="8" fill="#03244d">&sigma;<tspan font-size="6" dy="2">perp</tspan><tspan dy="-2"> (angular)</tspan></text>
+        <rect x="722" y="164" width="106" height="18" rx="2" fill="#e8edf3"/><text x="775" y="177" text-anchor="middle" font-size="8" fill="#03244d">existence logit</text>
+        <text x="775" y="200" text-anchor="middle" font-size="7" fill="#999">&sigma;<tspan font-size="6" dy="1">perp</tspan><tspan dy="-1"> = f(range)</tspan></text>
+        <line x1="840" y1="130" x2="860" y2="130" stroke="#999" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+
+        <!-- Loss -->
+        <rect x="865" y="60" width="110" height="140" rx="4" fill="#f8f4ef" stroke="#e8d8c4"/>
+        <text x="920" y="82" text-anchor="middle" font-size="10" fill="#03244d" font-weight="700">Hungarian NLL</text>
+        <text x="920" y="100" text-anchor="middle" font-size="8" fill="#666">1-to-1 matching</text>
+        <rect x="877" y="110" width="86" height="16" rx="2" fill="#e8edf3"/><text x="920" y="122" text-anchor="middle" font-size="7" fill="#333">NLL loss</text>
+        <rect x="877" y="130" width="86" height="16" rx="2" fill="#e8edf3"/><text x="920" y="142" text-anchor="middle" font-size="7" fill="#333">Huber range (0.1)</text>
+        <rect x="877" y="150" width="86" height="16" rx="2" fill="#e8edf3"/><text x="920" y="162" text-anchor="middle" font-size="7" fill="#333">&sigma; prior (0.3)</text>
+        <rect x="877" y="170" width="86" height="16" rx="2" fill="#e8edf3"/><text x="920" y="182" text-anchor="middle" font-size="7" fill="#333">existence BCE</text>
+
+        <!-- Total params label -->
+        <rect x="430" y="235" width="240" height="22" rx="4" fill="#DD550C"/>
+        <text x="550" y="250" text-anchor="middle" font-size="11" fill="#fff" font-weight="700">3.1M parameters total (5.6&#x00d7; smaller than baseline)</text>
+      </svg>
+
       <div class="callout">
         <h3>Key Architectural Lessons</h3>
-        <p><strong>1.</strong> Classical physics (FFT) as input features outperforms both learning from scratch and learning through physics losses. <strong>2.</strong> Gaussian set output with Hungarian NLL produces better worst-case precision than occupancy grids. <strong>3.</strong> Temporal context helps when fused early (channel stacking), not late (ConvLSTM after downsampling). <strong>4.</strong> Heteroscedastic &sigma; scaling with range matches the physics of angular uncertainty.</p>
+        <p><strong>1.</strong> Classical physics (FFT) as input outperforms learning from scratch and physics losses. <strong>2.</strong> Gaussian set output + Hungarian NLL beats occupancy grids for worst-case precision. <strong>3.</strong> Temporal fusion must happen early (channel stacking), not late (ConvLSTM). <strong>4.</strong> Heteroscedastic &sigma; scaling with range matches angular uncertainty physics.</p>
       </div>
     </div>
 
@@ -618,6 +802,55 @@
         <h3>Why Multiple Metrics?</h3>
         <p>Chamfer measures <em>mean</em> quality. mod-H measures <em>worst-case</em>. IoU/F1 measure <em>detection</em>. A model that sprays points scores well on Chamfer but poorly on mod-H. Our Gaussian model improves <strong>all metrics simultaneously</strong>.</p>
       </div>
+
+      <!-- Metric Visualization -->
+      <svg viewBox="0 0 600 200" style="width: 100%; margin-top: 0.06in;" xmlns="http://www.w3.org/2000/svg">
+        <!-- Chamfer side -->
+        <text x="150" y="16" text-anchor="middle" font-size="12" font-weight="700" fill="#03244d">Chamfer Distance</text>
+        <text x="150" y="30" text-anchor="middle" font-size="9" fill="#666">average of all NN distances</text>
+        <!-- Predicted points (blue) -->
+        <circle cx="60" cy="70" r="5" fill="#03244d"/><circle cx="90" cy="90" r="5" fill="#03244d"/><circle cx="130" cy="60" r="5" fill="#03244d"/>
+        <circle cx="170" cy="100" r="5" fill="#03244d"/><circle cx="200" cy="75" r="5" fill="#03244d"/><circle cx="240" cy="85" r="5" fill="#03244d"/>
+        <!-- GT points (orange) -->
+        <circle cx="65" cy="120" r="5" fill="#DD550C"/><circle cx="100" cy="135" r="5" fill="#DD550C"/><circle cx="140" cy="115" r="5" fill="#DD550C"/>
+        <circle cx="180" cy="140" r="5" fill="#DD550C"/><circle cx="210" cy="125" r="5" fill="#DD550C"/><circle cx="235" cy="145" r="5" fill="#DD550C"/>
+        <!-- NN lines (all shown, thin) -->
+        <line x1="60" y1="70" x2="65" y2="120" stroke="#999" stroke-width="0.8" stroke-dasharray="3,2"/>
+        <line x1="90" y1="90" x2="100" y2="135" stroke="#999" stroke-width="0.8" stroke-dasharray="3,2"/>
+        <line x1="130" y1="60" x2="140" y2="115" stroke="#999" stroke-width="0.8" stroke-dasharray="3,2"/>
+        <line x1="170" y1="100" x2="180" y2="140" stroke="#999" stroke-width="0.8" stroke-dasharray="3,2"/>
+        <line x1="200" y1="75" x2="210" y2="125" stroke="#999" stroke-width="0.8" stroke-dasharray="3,2"/>
+        <line x1="240" y1="85" x2="235" y2="145" stroke="#999" stroke-width="0.8" stroke-dasharray="3,2"/>
+        <!-- Labels -->
+        <circle cx="60" cy="175" r="4" fill="#03244d"/><text x="70" y="179" font-size="9" fill="#333">Predicted</text>
+        <circle cx="140" cy="175" r="4" fill="#DD550C"/><text x="150" y="179" font-size="9" fill="#333">Ground Truth</text>
+        <text x="150" y="196" text-anchor="middle" font-size="10" fill="#03244d" font-weight="600">Mean of all dashed lines</text>
+
+        <!-- Divider -->
+        <line x1="300" y1="10" x2="300" y2="190" stroke="#ddd" stroke-width="1"/>
+
+        <!-- mod-Hausdorff side -->
+        <text x="450" y="16" text-anchor="middle" font-size="12" font-weight="700" fill="#03244d">Modified Hausdorff</text>
+        <text x="450" y="30" text-anchor="middle" font-size="9" fill="#666">worst-case NN distance (P95)</text>
+        <!-- Points (same layout but highlight the worst) -->
+        <circle cx="360" cy="70" r="5" fill="#03244d"/><circle cx="390" cy="90" r="5" fill="#03244d"/><circle cx="430" cy="60" r="5" fill="#03244d"/>
+        <circle cx="470" cy="100" r="5" fill="#03244d"/><circle cx="530" cy="55" r="5" fill="#03244d"/>
+        <!-- GT points -->
+        <circle cx="365" cy="120" r="5" fill="#DD550C"/><circle cx="400" cy="135" r="5" fill="#DD550C"/><circle cx="440" cy="115" r="5" fill="#DD550C"/>
+        <circle cx="480" cy="140" r="5" fill="#DD550C"/><circle cx="540" cy="145" r="5" fill="#DD550C"/>
+        <!-- One outlier far away -->
+        <circle cx="505" cy="55" r="6" fill="#cc4444" stroke="#cc4444" stroke-width="2" fill-opacity="0.3"/>
+        <!-- NN lines (thin for most) -->
+        <line x1="360" y1="70" x2="365" y2="120" stroke="#ccc" stroke-width="0.8" stroke-dasharray="3,2"/>
+        <line x1="390" y1="90" x2="400" y2="135" stroke="#ccc" stroke-width="0.8" stroke-dasharray="3,2"/>
+        <line x1="430" y1="60" x2="440" y2="115" stroke="#ccc" stroke-width="0.8" stroke-dasharray="3,2"/>
+        <line x1="470" y1="100" x2="480" y2="140" stroke="#ccc" stroke-width="0.8" stroke-dasharray="3,2"/>
+        <!-- Worst NN line (thick red) -->
+        <line x1="505" y1="55" x2="540" y2="145" stroke="#cc4444" stroke-width="2.5"/>
+        <text x="545" y="100" font-size="10" fill="#cc4444" font-weight="700">worst</text>
+        <!-- Labels -->
+        <text x="450" y="196" text-anchor="middle" font-size="10" fill="#cc4444" font-weight="600">Penalizes the worst outlier</text>
+      </svg>
     </div>
 
     <!-- 5. RESULTS (right bottom) -->
