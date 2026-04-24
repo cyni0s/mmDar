@@ -1,296 +1,229 @@
-# mmDar — Physics-First Radar Point Cloud Generation
+# mmDar — Physics-First Radar-to-Point-Cloud
 
-mmDar generates lidar-like point clouds from raw mmWave radar IQ data (TI AWR1843, 8 virtual antennas, 77 GHz). Started from [RadarHD (ICRA 2023)](https://arxiv.org/abs/2206.09273) as a baseline, then developed a novel physics-first architecture: classical FFT beamforming as input → 2D spatial encoder → DETR-style Gaussian set decoder with Hungarian NLL loss.
+Class submission for ELEC-6970 (Applied Statistics and Machine Learning, Auburn).
+Generates lidar-quality 2D point clouds from raw mmWave radar IQ (TI AWR1843,
+77 GHz, 8 virtual antennas).
 
-## Key Results
+Starts from the [RadarHD (ICRA 2023)](https://arxiv.org/abs/2206.09273) U-Net
+baseline and adds a physics-first Gaussian set prediction model that operates
+directly on complex IQ data: classical FFT beamforming (fixed, 0 parameters) →
+2D conv encoder → DETR-style decoder → 96 Gaussians in polar coordinates.
 
-| Model | Input | Params | Chamfer (m) | Mod-H (m) | Selection | Fair? |
-|-------|-------|--------|-------------|-----------|-----------|-------|
-| **Physics-first Gaussian** | **Raw IQ** | **3.1M** | **0.318** | **0.230** | **VAL** | **YES** |
-| Honest baseline (UNet1) | PNGs | 17.5M | 0.406 | 0.296 | VAL | YES |
-| Original baseline (UNet1) | PNGs | 17.5M | 0.295 | 0.189 | TEST | ⚠️ NO |
-| Paper (RadarHD ICRA 2023) | PNGs | 17.5M | 0.36 | 0.24 | unknown | — |
+**See [`REPORT.pdf`](./REPORT.pdf) for the full write-up.**
 
-**With fair evaluation (val-selected checkpoints), the physics-first Gaussian model beats the baseline by 22% on both Chamfer and mod-Hausdorff, using 5.6× fewer parameters and raw IQ input instead of preprocessed PNGs.**
+## Headline results
 
-The original baseline's 0.189 mod-H was artificially low from test-set checkpoint selection. The honest baseline number is 0.296.
+From `REPORT.pdf` Table II, on the sealed 18,575-frame low-ID test set
+(`v2` split) unless noted, val-selected checkpoints only:
 
-*Frame-median over sealed 19-trajectory test set. Same 17 train / 8 val split for fair comparison.*
+| Model | Params | Chamfer (m) ↓ | mod-H (m) ↓ |
+|-------|--------|---------------|-------------|
+| **Physics-first Gaussian** | **3.1 M** | **0.318** | **0.230** |
+| Honest baseline (UNet1) | 17.5 M | 0.406 | 0.296 |
+| Physics-first Gaussian (mixed-ID split) | 3.1 M | 0.280 | 0.205 |
 
-### Architecture
+The physics-first model beats the honestly-evaluated baseline by 22% on both
+metrics while using 5.6× fewer parameters. See `REPORT.pdf` §IV.B for why
+checkpoint selection against the test set produces optimistic results, and how
+the "honest" baseline number recovers from the literature's 0.295 m.
 
-```
-Raw IQ (8 ant × 512 range, complex) × 41 frames
-  → Classical FFT beamformer (FIXED, 64 azimuth bins — physics does the heavy lifting)
-  → Stack 41 frames as channels
-  → Deep 2D encoder (preserves azimuth × range spatial structure)
-  → 512 spatial tokens with 2D positional encoding
-  → DETR-style decoder (96 learnable queries, 3 cross-attention layers)
-  → Per query: (range, azimuth, σ_range, σ_perp, existence) — Gaussian in polar coords
-  → Filter by existence → extract centers → point cloud
-```
+## What's in this submission
 
-### Key Innovations
-- **Physics as input, not learned**: classical FFT gives the network a head start; it learns only the residual
-- **Gaussian set prediction**: DETR-style queries predict scene elements, not a fixed grid or fixed point count
-- **Hungarian NLL loss**: one-to-one matching prevents the "spray imprecise points" failure of Chamfer loss
-- **Physics-informed uncertainty**: σ_perp scales with range (angular error × distance)
-- **2D spatial structure preserved**: no 1D collapse of azimuth dimension
+Included:
 
-See [`results/README.md`](./results/README.md) for full experiment tracking (12+ phases).
+1. **All source code** — two pipelines (baseline U-Net in `baseline/`,
+   physics-first Gaussian in `train/` + `model/` + `data/`).
+2. **`dataset_5/`** — 336 MB of paired radar/lidar PNGs (84,232 frames).
+   Sufficient to train and evaluate the baseline U-Net from scratch.
+3. **`checkpoints/`** — three pretrained models (~95 MB total) that reproduce
+   the three rows of the headline table. See `checkpoints/README.md`.
+4. **`data/processed/radar_250.pt`, `lidar_250.pt`, `norm_250.pt`** — one
+   preprocessed trajectory (366 frames, 46 MB) so the Gaussian model can be
+   demonstrated end-to-end without the raw dataset.
+5. **`REPORT.pdf`** — final IEEE-format report (and `reports/initial_report/`
+   has the .tex source + figures).
 
-## Setup & Installation
+Not included (too large for GitHub):
 
-### Prerequisites
+- The full raw RadarHD dataset (~400 GB uncompressed / 83 GB compressed as
+  `RadarHD-dataset.zip`). Required **only** for retraining the Gaussian
+  model from scratch. Download from
+  [akarsh-prabhakara/RadarHD](https://github.com/akarsh-prabhakara/RadarHD)
+  following their README.
 
-- NVIDIA GPU (tested on RTX 5090)
-- Docker with NVIDIA Container Toolkit
-- ~350 MB free disk space for `dataset_5/`
+## System requirements
 
-### Quick Start
+- Linux, NVIDIA GPU (≥ 8 GB VRAM — tested on RTX 5090)
+- Docker with the
+  [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/)
+- ~1.5 GB free disk for the repo
+- ~42 GB additional if retraining the Gaussian model from raw data
+- Every command in this README runs inside the Docker container via
+  `docker compose run --rm mmdar …`. Nothing is installed on the host.
 
-```bash
-# Clone and enter
-git clone <repo-url> && cd mmDar
-
-# Build Docker environment
-docker compose build
-
-# Run interactive container
-docker compose run mmdar bash
-
-# Inside container — inference with pretrained model
-python3 test_radarhd.py
-
-# Inside container — train from scratch
-python3 train_radarhd.py
-```
-
-Alternatively, use the original Docker run command:
+## Setup
 
 ```bash
-sudo docker run -it --rm --gpus all --shm-size 8G \
-  -v $(pwd):/radarhd/ pytorch/pytorch bash
-
-cd /radarhd/
-sh install.sh
+git clone <repo-url>
+cd mmDar
+docker compose build          # ~10 min first time (NGC 25.02-py3 + pytorch3d)
 ```
 
-### Dependencies
+## Quick start — reproduce a headline number with a pretrained checkpoint
 
-All Python dependencies are installed by `install.sh`:
+### Physics-first Gaussian on the shipped demo trajectory (~3 min on RTX 5090)
 
 ```bash
-sh install.sh
+docker compose run --rm mmdar python3 tools/run_inference.py \
+    --checkpoint checkpoints/physics_gaussian_headline.pt \
+    --trajectories 250 \
+    --split v2 \
+    --output results/demo_gaussian/
 ```
 
-Key packages: PyTorch, OpenCV, NumPy, SciPy, Matplotlib, Pillow.
+Output: `results/demo_gaussian/metrics.json` with per-frame Chamfer and
+modified Hausdorff. Trajectory 250 is a hard high-ID test case — its per-frame
+medians will be **worse** than the aggregate 0.318 / 0.230 that the checkpoint
+achieves on the full 19-trajectory test set (smoke-tested: Chamfer ≈ 0.52,
+mod-H ≈ 0.55 on this trajectory alone). This run verifies the model, the
+wrapper, and the preprocessed-IQ pipeline all work end-to-end on a fresh clone.
 
-## Usage
+To reproduce the full headline number you need all 44 preprocessed trajectories
+— see "Full reproduction" below.
 
-### Training
+### Baseline U-Net on the full sealed test set (~9 min on RTX 5090)
+
+The baseline uses the upstream `test_radarhd.py` entry point, which expects
+the checkpoint at a fixed path:
 
 ```bash
-# Train with default parameters (matching original RadarHD paper)
-python3 train_radarhd.py
+mkdir -p logs/baseline_honest/
+cp checkpoints/baseline_honest.pt_gen logs/baseline_honest/best.pt_gen
+
+docker compose run --rm mmdar python3 baseline/test_radarhd.py
+docker compose run --rm mmdar python3 eval/pol_to_cart.py
+docker compose run --rm mmdar python3 -m eval.eval_pointcloud \
+    --pred-dir logs/baseline_honest/test_imgs/pred/ \
+    --label-dir logs/baseline_honest/test_imgs/label/ \
+    --output-dir results/baseline_honest_eval/
 ```
 
-Training configuration (model architecture, batch size, learning rate, etc.) is
-controlled by constants at the top of `train_radarhd.py`. TensorBoard logs are
-written to the `logs/` directory.
+Expected: Chamfer ≈ 0.406 m, mod-H ≈ 0.296 m on the 18,575-frame test set.
 
-### Inference
+## Reproduce the baseline U-Net from scratch (no raw dataset needed)
 
 ```bash
-# Run inference with pretrained model on test dataset
-python3 test_radarhd.py
+docker compose run --rm mmdar python3 baseline/train_honest.py
 ```
 
-Downloads the pretrained model checkpoint from the link in the original repository
-and places it under `logs/13_1_20220320-034822/`. Output images (predicted + ground
-truth in polar format) are written to `logs/.../test_imgs/`.
+Trains 50 epochs (~80 min on RTX 5090) from the `dataset_5/` PNGs that ship
+with the repo, selects the best epoch on validation mod-H, and writes
+`logs/baseline_honest/best.pt_gen`. Then run the baseline inference + eval
+commands from the Quick Start section above.
 
-### Evaluation
+Hyperparameters (hardcoded at the top of `baseline/train_honest.py`):
+batch 12, lr 7 × 10⁻⁵, fp32, 50 epochs, 41-frame history.
 
-The Python evaluation pipeline replaces MATLAB for all metric computation:
+## Reproduce the Gaussian model from scratch (requires raw dataset)
+
+### 1. Get the raw RadarHD dataset
+
+Download from
+[github.com/akarsh-prabhakara/RadarHD](https://github.com/akarsh-prabhakara/RadarHD).
+Unpack it somewhere, then point `RADARHD_RAW` at the unpacked directory:
 
 ```bash
-# Convert polar images to cartesian
-cd eval/
-python3 pol_to_cart.py
-
-# Compute all metrics (Chamfer, modified Hausdorff, IoU, F1)
-python3 eval_pointcloud.py \
-  --pred-dir  ../logs/<run>/test_imgs/pred/ \
-  --label-dir ../logs/<run>/test_imgs/label/ \
-  --output-dir ../results/<experiment-name>/ \
-  --experiment-name <experiment-name>
+export RADARHD_RAW=/absolute/path/to/RadarHD-dataset
 ```
 
-Outputs written to `results/<experiment-name>/`:
-- `metrics.json` — full per-sample and aggregate metrics
-- `metrics.csv`  — tabular summary
-- `plots/`       — side-by-side visualizations (radar / prediction / ground truth)
+### 2. Preprocess raw IQ + lidar into `.pt` tensors
 
-The MATLAB pipeline (`eval/pc_compare.m`, `eval/pc_distance.m`) remains available
-for cross-validation.
+(~2 h on RTX 5090, outputs ~42 GB to `data/processed/`)
 
-## Project Structure
+```bash
+docker compose run --rm -e RADARHD_RAW mmdar python3 -m data.preprocess \
+    --raw-dir $RADARHD_RAW --output-dir data/processed/
+```
+
+Writes 44 × {`radar_<id>.pt`, `lidar_<id>.pt`, `norm_<id>.pt`} plus
+`frame_table.json`. (Trajectory 250's files ship with the repo; preprocessing
+will overwrite them identically.)
+
+### 3. Fit ground-truth prototypes (~5 min)
+
+```bash
+docker compose run --rm mmdar python3 -m train.train --fit-prototypes
+```
+
+### 4. Train (~3 h on RTX 5090, 50 epochs)
+
+```bash
+# Headline result — low-ID split → Chamfer 0.318 / mod-H 0.230
+docker compose run --rm mmdar python3 -m train.train \
+    --train --split v2 --augment
+
+# Mixed-ID best → Chamfer 0.280 / mod-H 0.205
+docker compose run --rm mmdar python3 -m train.train \
+    --train --split mixed --augment
+```
+
+Defaults: batch 4, lr 1 × 10⁻⁴, window 41, K 96, N_az 64,
+σ_r prior 0.3, Huber range weight 0.1 (matches exp4 of the report).
+
+### 5. Evaluate the newly-trained model
+
+```bash
+docker compose run --rm mmdar python3 tools/run_inference.py \
+    --checkpoint logs/v2_gaussian/best.pt \
+    --split v2 --trajectories all \
+    --output results/my_run/
+```
+
+## Best parameters (summary)
+
+| Report row | Shipped checkpoint | Reproduce-from-scratch command | Wall time (RTX 5090) |
+|---|---|---|---|
+| Physics Gaussian headline (0.318 / 0.230) | `checkpoints/physics_gaussian_headline.pt` | `python3 -m train.train --train --split v2 --augment` | ~3 h |
+| Physics Gaussian mixed-ID (0.280 / 0.205) | `checkpoints/physics_gaussian_mixed.pt` | `python3 -m train.train --train --split mixed --augment` | ~3 h |
+| Honest baseline (0.406 / 0.296) | `checkpoints/baseline_honest.pt_gen` | `python3 baseline/train_honest.py` | ~80 min |
+
+## Project layout
 
 ```
 mmDar/
-├── train_radarhd.py          # Training script
-├── test_radarhd.py           # Inference script
-├── install.sh                # Dependency installation
-├── dataset_5/                # Paired radar / lidar images (train + test)
-├── logs/                     # Model checkpoints and test outputs
-├── train_test_utils/         # Model, loss, and dataloader definitions
-├── eval/
-│   ├── eval_pointcloud.py    # Python evaluation module (CLI + importable)
-│   ├── pol_to_cart.py        # Polar → cartesian image conversion
-│   ├── image_to_pcd.py       # Cartesian image → point cloud (open3d)
-│   ├── pc_distance.m         # MATLAB point-cloud distance metrics
-│   └── pc_compare.m          # MATLAB CDF comparison plots
-├── results/                  # Per-experiment metrics and plots
-│   └── README.md             # Experiment comparison table
-└── create_dataset/           # Raw sensor processing scripts
+├── REPORT.pdf                     # Final report (copy of reports/initial_report/report.pdf)
+├── README.md                      # This file
+├── Dockerfile, docker-compose.yml, requirements.txt, install.sh
+├── dataset_5/                     # 336 MB paired radar/lidar PNGs — baseline data
+├── checkpoints/                   # Three pretrained models — see checkpoints/README.md
+├── data/
+│   ├── processed/                 # Demo trajectory 250 + frame_table.json
+│   ├── preprocess.py              # Raw RadarHD → .pt pipeline
+│   ├── windowed_dataset.py        # Dataset abstraction for 41-frame windows
+│   └── split{,_v2,_mixed}.py      # Train/val/test trajectory IDs
+├── model/                         # Gaussian model components
+│   ├── physics_frontend.py        # Classical FFT + 2D encoder + full pipeline
+│   ├── gaussian_head.py           # DETR decoder + Gaussian heads
+│   ├── beamspace.py, lista.py     # Alternative beamforming stages
+│   └── cvnn.py                    # Complex-valued layers
+├── train/
+│   ├── train.py                   # Gaussian model training entry point
+│   └── loss_gaussian.py           # Hungarian NLL + auxiliary terms
+├── baseline/
+│   ├── train_radarhd.py           # Upstream RadarHD training (unchanged)
+│   ├── train_honest.py            # Honest-evaluation variant (val-based selection)
+│   └── test_radarhd.py            # Upstream inference entry point
+├── eval/                          # Metric computation (Chamfer, mod-H, IoU, F1)
+├── tools/run_inference.py         # End-to-end Gaussian inference CLI
+├── train_test_utils/              # U-Net model, dataloader, Dice loss
+├── tests/                         # pytest suite
+├── create_dataset/                # Upstream raw-sensor processing (reference only)
+└── reports/initial_report/        # Report .tex + figures + references.bib
 ```
 
-## Changes From Original RadarHD
+## Citation
 
-This section documents all modifications from the [upstream RadarHD repository](https://github.com/akarsh-prabhakara/RadarHD). The original model architecture (`UNet1`), dataloader, and loss function (`BCELoss + DiceLoss`) are **untouched** — Phase 2 adds a new model variant alongside them.
-
-### Phase 2: Reusable Infrastructure
-
-Built during ConvLSTM development, usable by any future model variant:
-
-| Change | File(s) | Purpose |
-|--------|---------|---------|
-| `norm_type` parameter | `train_test_utils/unet_parts.py` | All building blocks (DoubleConv, Down, Up, Up_nocat) accept `norm_type='batch'` (default) or `'group'`. Enables GroupNorm variants without duplicating block code. |
-| Temporal consistency metric | `eval/eval_pointcloud.py` — `temporal_consistency()` | Frame-to-frame Chamfer distance within trajectories. Evaluates any model's output stability. |
-| Multi-model experiment runner | `run_experiment.py` — `--model` flag | Dispatch pattern for training/eval across model variants. Currently supports `baseline` and `convlstm`. |
-| Trajectory-aware data loading | `train_test_utils/dataloader.py` — `SequentialDataset`, `TrajectoryBatchSampler`, `seq_collate_fn` | Temporal sequence access with stateless pre-computed epoch schedules. Safe for `num_workers>0`. Reusable by any sequential/temporal model. |
-| T-curve evaluation pattern | `test_convlstm.py` | Evaluates at T={1,4,8,16,32,41} to measure metrics vs history length. Pattern applicable to any temporal model. |
-| Test infrastructure | `tests/conftest.py`, `tests/__init__.py` | Shared fixtures (device selection, reproducibility). 61 tests across 5 test files. |
-| Training script template | `train_convlstm.py` | `params.json` logging, TensorBoard integration, validation-based checkpointing, `--dry_run` smoke test, gradient checkpointing. Pattern for future training scripts. |
-
-### Phase 2: ConvLSTM Temporal Modeling (Negative Result)
-
-**Hypothesis:** Sequential temporal modeling via ConvLSTM at the U-Net bottleneck would improve spatial precision by learning frame-to-frame dynamics.
-
-**Result:** ConvLSTM Chamfer 0.603m — **2× worse** than the baseline (0.295m). The approach is a dead end for this task.
-
-| Experiment | Chamfer (m) | Mod-H (m) | IoU | F1 |
-|------------|-------------|-----------|------|------|
-| 5090-optimized baseline | **0.295** | **0.189** | 0.054 | 0.102 |
-| Pretrained baseline | 0.363 | 0.247 | 0.026 | 0.051 |
-| ConvLSTM T=8 ep30 | 0.603 | 0.467 | 0.026 | 0.051 |
-
-**ConvLSTM-specific code** (all additive — baseline untouched):
-
-| File | Purpose |
-|------|---------|
-| `train_test_utils/model.py` — `ConvLSTMCell`, `UNet1ConvLSTM` | 2 ConvLSTM cells (bottleneck + deepest skip), GroupNorm, batched encoder/decoder forward, 27.5M params |
-| `train_convlstm.py` | ConvLSTM training: dense supervision, truncated BPTT, fp32/bf16 AMP |
-| `test_convlstm.py` | ConvLSTM inference with T-curve evaluation |
-
-### Infrastructure
-
-| Change | File(s) | Purpose |
-|--------|---------|---------|
-| Docker environment | `Dockerfile`, `docker-compose.yml`, `.dockerignore` | NGC 25.02-py3 base (CUDA 12.8, PyTorch 2.7, RTX 5090 / sm_120 support) |
-| Dependency pinning | `requirements.txt` | numpy<2.0 to avoid ABI conflicts; torch/tensorboard omitted (NGC-managed) |
-| Git hygiene | `.gitignore` | Ignore checkpoints, datasets, TensorBoard dirs, test_imgs |
-
-### Training (`train_radarhd.py`)
-
-| Change | Original | Modified | Impact |
-|--------|----------|----------|--------|
-| TensorBoard logging | None | `SummaryWriter` logs epoch loss + LR | Observability only |
-| Model summary | `torchsummary.summary(gen, (H+1, 256, 64))` | `torchinfo.summary(gen, input_size=(1, H+1, 256, 64))` | Fixes BatchNorm 4D error |
-| DataLoader workers | `num_workers=0` (default) | `num_workers=4, pin_memory=True` | GPU utilization 7% → 94% |
-| Mixed precision | fp32 only | Optional bf16 autocast (loss computed in fp32) | ~30% faster per epoch |
-| Gradient accumulation | Not supported | `grad_accum_steps` parameter (default 1) | Enables large effective batch |
-| LR schedule | Constant only | Optional linear warmup + cosine decay | For future experiments |
-| Best checkpoint | Not saved | `best.pt_gen` saved on lowest epoch mean loss | **Caution:** training loss ≠ test metric (see Lessons) |
-| Params saved | Not saved | `params.json` written to log dir | Reproducibility |
-| `zero_grad` | `zero_grad()` per batch | `zero_grad(set_to_none=True)` after optimizer step | Memory efficiency; mathematically equivalent |
-
-### Inference (`test_radarhd.py`)
-
-| Change | Original | Modified |
-|--------|----------|----------|
-| Checkpoint loading | Fixed epoch number only | `epoch_num=-1` loads `best.pt_gen` |
-| Model summary | Same BatchNorm fix as training | `input_size=(1, ...)` |
-
-### Evaluation (`eval/eval_pointcloud.py` — new file)
-
-Python replacement for the MATLAB evaluation pipeline (`pc_compare.m` + `pc_distance.m`):
-- Chamfer distance and modified Hausdorff matching MATLAB definitions exactly
-- Two coordinate modes: `legacy_cartesian` (matches paper's `pol_to_cart.py` flow) and `polar_direct`
-- Polar image metrics: IoU, F1, precision, recall
-- Batch evaluation with per-sample CSV output and side-by-side visualizations
-- Uses `scipy.spatial.distance.cdist` — no PyTorch/pytorch3d dependency
-
-The `legacy_cartesian` mode reproduces the paper's eval pipeline within 3% (Chamfer 0.363m vs reported 0.36m).
-
-### Lessons Learned
-
-- **Temporal modeling via ConvLSTM does not improve this task — spatial precision is the bottleneck, not temporal dynamics.** The baseline's 41-channel stacking fuses all frames at full resolution in the first conv layer. ConvLSTM delays temporal fusion until after heavy downsampling (16×4 bottleneck, 32×8 skip), losing the fine spatial detail that Chamfer distance measures. IoU/F1 stayed at baseline level (coarse occupancy was correct), but Chamfer/mod-H doubled (spatial precision was destroyed). The lesson: for radar-to-lidar translation, *where* temporal fusion happens matters more than *how* — early fusion at full resolution beats late fusion at compressed resolution.
-- **Truncated BPTT (T=8 train → T=41 eval) causes distribution shift.** LSTM hidden state at steps 9-41 enters distributions never seen during training, compounding the architectural disadvantage. Both Codex (gpt-5.4) and Gemini (2.5-pro) independently diagnosed this as the primary failure mode.
-- **Dense supervision can backfire.** With T=8 and intermediate_weight=0.2, the 7 intermediate timesteps contribute total weight 1.4 vs 1.0 for the final step. This optimizes more for short-term predictions than final-step quality — "short-sighted" training penalized at eval.
-- **Streaming inference cost is nearly identical.** ConvLSTM streaming (1 frame + carry state) = 2.9ms vs baseline (41-channel forward) = 2.2ms. The ConvLSTM's architectural disadvantage is not offset by meaningful latency improvement.
-- **Checkpoint selection by training loss is unreliable.** BCE+Dice loss in polar space correlates poorly with Cartesian point-cloud metrics (Chamfer/mod-Hausdorff). A run with 12% lower training loss produced 15% worse Chamfer distance. Select checkpoints by evaluating test metrics on saved periodic checkpoints instead.
-- **Batch size 12 is optimal on RTX 5090.** Sweeping batch sizes 6/12/16/24/48 shows batch=12 gives the best Chamfer distance. Batch=6 (original paper) is too noisy, batch>=24 overfits. BatchNorm statistics noise at small batch sizes provides implicit regularization critical for this UNet architecture.
-- **LR=7e-5 beats the paper's 1e-4.** A systematic LR sweep (5e-5, 7e-5, 1e-4, 1.5e-4) found 7e-5 optimal at batch=12, achieving Chamfer 0.308m — 15% better than the pretrained model (0.363m).
-- **bf16 mixed precision trades ~4% quality for ~30% speed.** At batch=12, lr=7e-5: fp32 achieves Chamfer 0.295m vs bf16's 0.308m. For fast iteration (sweeps, prototyping) bf16 is fine. For final results, use fp32.
-- **The original authors used no validation set or metric-based selection.** They trained for 130 epochs, saved every 10, and shipped epoch 120. Our approach: train, save every 10 epochs, sweep checkpoints by Chamfer distance.
-- **Best 5090 config: batch=12, lr=7e-5, fp32, ~10 epochs (~22 min).** Chamfer 0.295m — 18% better than the paper. For fast sweeps, bf16 at the same config is ~30% faster with only ~4% quality loss.
-
-#### v2 Raw-IQ Pipeline Lessons
-
-- **Single-frame raw IQ achieves near-baseline Chamfer.** The v2 Mag+Phase decoder (FFT + sin/cos phase channels + point decoder) achieves 0.309m Chamfer from 1 frame vs the 41-frame baseline's 0.295m. Raw IQ is viable for streaming without PNG preprocessing.
-- **Phase helps average geometry but hurts worst-case structure.** Adding sin/cos phase channels improved Chamfer by 2.5% (0.317→0.309) but worsened mod-Hausdorff by 6% (0.399→0.423). Phase sharpens localization for detected targets but provides no coverage benefit for missed returns.
-- ~~**The mod-Hausdorff gap is temporal, not architectural.**~~ PARTIALLY WRONG — Phases 6-7 proved the gap is real model quality (precision 0.322 vs baseline 0.180), not just temporal or representation mismatch. Phase 9a showed Hungarian NLL loss reduces mod-H from 0.429→0.278.
-- **"Bugs" can be features.** The Conv1d(256→128) bridge collapses 256 angular bins into 128 abstract channel features — destroying explicit angular topology but providing rich per-range-position features. When we "fixed" this with Conv2d(3→128) preserving 2D layout, the model got worse because each position only sees 3 local features instead of 256 global angular bins. The right inductive bias depends on the downstream consumer (MLP vs conv).
-- **Capacity matters for occupancy prediction.** A 75K-param dilated conv head on polar occupancy (256×512, 0.8% positive) produced Chamfer 0.750m — the model couldn't learn from the sparse labels. The baseline U-Net uses 17.5M params. Dense occupancy prediction from sparse labels requires multi-scale capacity, not a flat conv head.
-- **Temporal cross-attention matches baseline Chamfer with 8 frames (not 41) and 8× fewer params.** But mod-Hausdorff is unchanged. Most of the Chamfer gain comes from pretrained initialization, not temporal fusion. The per-range-bin cross-attention adds only ~0.005m Chamfer and 0 mod-H on test set.
-- **Validation on 4 trajectories is unreliable.** Val showed 14% temporal improvement; test showed 1.7%. The unit of variation is trajectory, not frame — 4 trajectories cannot represent 19. This pattern repeats in EVERY experiment (Phase 9a: val 0.142 vs test 0.278).
-- ~~**The mod-H gap is an output representation problem, not temporal.**~~ DISPROVEN — Phase 6 showed baseline uses only ~2874 points (not 8192 bottleneck). Phase 7 showed GT density/quantization doesn't explain the gap. The gap is precision: the v2 decoder places points in wrong locations.
-
-#### Phases 6-9 Lessons (Standardized Eval + Gaussian Decoder)
-
-- **The beamformer is an information bottleneck** (Phase 8a). FFT/LISTA beamformer from 8 antennas gives ~14° angular resolution. On a 256/512-azimuth grid, each target is a ~40-bin-wide blob. U-Net on blurred features can't learn occupancy. Chamfer 1.28, mod-H 1.84 — 4× worse than baseline.
-- **Chamfer loss optimizes the wrong metric.** Chamfer = mean NN distance → encourages spraying points for coverage. mod-H = max(median) → punishes imprecise outliers. Training with Chamfer gives good Chamfer (0.295) but bad mod-H (0.429). The loss-metric gap is the core problem.
-- **Hungarian NLL > Chamfer for mod-H.** Phase 9a Gaussian decoder with Hungarian-matched heteroscedastic NLL achieves mod-H 0.278 (41fr) vs 0.429 (Chamfer-trained point decoder). The one-to-one assignment prevents the "spray" failure mode.
-- **Always sweep the occupancy threshold.** Sigmoid threshold 0.010 on the existing baseline gives mod-H 0.175 (beats default 0.189 by 7.5%). Free precision improvement with zero model changes.
-- **Confidence filtering on point decoders doesn't work.** v2 confidence logits are miscalibrated — filtering makes metrics worse. The BCE training target (within 0.3m = 1) is a poor quality proxy.
-- **Gaussian representation has massive headroom.** Oracle test: 64 K-Means centers on lidar GT give mod-H 0.034 (5.6× better than baseline). The challenge is predicting good positions from radar, not the representation itself.
-- **Use classical physics as input, let the network learn the delta.** The baseline PNGs work because FFT/beamforming/thresholding is already done. The U-Net only learns the residual. Don't re-derive physics in the network — use it as a starting point.
-- **Keep 2D spatial structure (azimuth × range).** Collapsing azimuth to 1D features loses spatial patterns (sidelobes, multi-target at same range). The baseline's 2D U-Net exploits these patterns. A pure 1D range encoder cannot.
-- **Fewer points ≠ better precision with Chamfer loss.** 2048-point decoder (vs 8192) gave marginal mod-H improvement (0.429→0.398) with worse Chamfer. The loss still optimizes coverage, just with fewer points to spread.
-- **Augmentation doesn't fix domain shift.** Flip, noise, and temporal masking simulate random perturbations, not different radar environments. The val/test gap (0.119→0.261) persists because all training trajectories are low-ID (112-140) while hard test trajectories are high-ID (227-250).
-- **Deeper 1D encoder worsens generalization.** 8-block dilated encoder achieved val mod-H 0.137 but test 0.301 — worse than the shallow encoder's test 0.278. More capacity without structural improvement enables more overfitting.
-- **Baseline checkpoint was selected on TEST data.** The original 0.189 mod-H result had no validation set. Checkpoints were evaluated on test and the best was selected. This is optimistic bias — the honest baseline number (val-selected) may be worse.
-
-### Hyperparameter Sweep Summary (RTX 5090)
-
-| Batch | LR | Precision | Best Chamfer (m) | Best mod-H (m) | Best Epoch | Time to Best |
-|-------|-----|-----------|-----------------|----------------|-----------|-------------|
-| **12** | **7e-5** | **fp32** | **0.295** | **0.189** | **10** | **22 min** |
-| 12 | 7e-5 | bf16 | 0.308 | 0.189 | 20 | 32 min |
-| 12 | 1e-4 | bf16 | 0.322 | 0.211 | 10 | 16 min |
-| 12 | 5e-5 | bf16 | 0.332 | 0.211 | 20 | 32 min |
-| 16 | 1e-4 | bf16 | 0.334 | 0.212 | 10 | 16 min |
-| 6 | 1e-4 | bf16 | 0.345 | 0.212 | 30 | 52 min |
-| 12 | 1.5e-4 | bf16 | 0.366 | 0.284 | 30 | 48 min |
-| 24 | 1.5e-4 | bf16 | 0.372 | 0.228 | 20 | 23 min |
-
-## Credits & References
-
-- **Original paper:** [High Resolution Point Clouds from mmWave Radar](https://arxiv.org/abs/2206.09273),
-  Prabhakara et al., ICRA 2023
-- **Original codebase:** [github.com/akarsh-prabhakara/RadarHD](https://github.com/akarsh-prabhakara/RadarHD)
+Upstream RadarHD:
 
 ```bibtex
 @INPROCEEDINGS{10161429,
@@ -304,3 +237,10 @@ The `legacy_cartesian` mode reproduces the paper's eval pipeline within 3% (Cham
   doi={10.1109/ICRA48891.2023.10161429}
 }
 ```
+
+For the physics-first Gaussian pipeline and the honest-evaluation findings in
+this submission, see [`REPORT.pdf`](./REPORT.pdf).
+
+## Team
+
+Chris Turner, Andreas Zeck, Justin Palm — ELEC-6970, Auburn University.
