@@ -87,17 +87,21 @@ def build_model(cfg: dict, device: torch.device) -> PhysicsGaussianModel:
 
 def load_state(model: PhysicsGaussianModel, ckpt_path: Path) -> None:
     blob = torch.load(ckpt_path, map_location="cpu", weights_only=False)
-    if isinstance(blob, dict) and "model" in blob:
-        state = blob["model"]
-    elif isinstance(blob, dict) and "state_dict" in blob:
-        state = blob["state_dict"]
+    if isinstance(blob, dict):
+        for key in ("model_state_dict", "state_dict", "model"):
+            if key in blob and isinstance(blob[key], dict):
+                state = blob[key]
+                break
+        else:
+            # No recognized wrapper key — assume the dict *is* the state_dict
+            state = blob
     else:
         state = blob
-    missing, unexpected = model.load_state_dict(state, strict=False)
+    missing, unexpected = model.load_state_dict(state, strict=True)
     if missing:
-        print(f"[WARN] missing keys: {len(missing)} (first 3: {missing[:3]})")
+        raise RuntimeError(f"Checkpoint load failed — {len(missing)} missing keys; first 3: {missing[:3]}")
     if unexpected:
-        print(f"[WARN] unexpected keys: {len(unexpected)} (first 3: {unexpected[:3]})")
+        raise RuntimeError(f"Checkpoint load failed — {len(unexpected)} unexpected keys; first 3: {unexpected[:3]}")
 
 
 def pad_to_3d(pts_2d: np.ndarray) -> np.ndarray:
