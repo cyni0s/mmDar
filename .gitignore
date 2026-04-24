@@ -42,3 +42,33 @@ AGENTS.md
 agents.md
 CLAUDE.md
 claude.md
+
+# === Class submission cleanup (2026-04-24) ===
+
+# Training run logs — only the curated checkpoints/ folder is shipped
+logs/
+
+# Local-only planning state (never ship to github)
+.planning_phase1_2_archive/
+.superpowers/
+docs/superpowers/
+
+# Cruft
+tmp.txt
+.pytest_cache/
+
+# Empty / placeholder from upstream RadarHD
+lidar_pcl/
+radar/
+
+# Preprocessed .pt — ship only demo trajectory 250 + frame_table.json
+data/processed/*
+!data/processed/radar_250.pt
+!data/processed/lidar_250.pt
+!data/processed/norm_250.pt
+!data/processed/frame_table.json
+!data/processed/.gitkeep
+
+# Exception: checkpoints/ always ships (overrides *.pt_gen rule above)
+!checkpoints/
+!checkpoints/**
