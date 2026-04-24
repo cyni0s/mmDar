@@ -72,3 +72,19 @@ data/processed/*
 # Exception: checkpoints/ always ships (overrides *.pt_gen rule above)
 !checkpoints/
 !checkpoints/**
+
+# LaTeX build artifacts (report source ships, build products don't)
+*.aux
+*.bbl
+*.blg
+*.log
+*.out
+*.synctex.gz
+
+# Raw training sweep artifacts (report summarizes these; raw metrics not shipped)
+results/sweep_*/
+results/convlstm_*/
+results/*/plots/
+
+# Local helper scripts (not part of the submitted reproduction pipeline)
+run_sweep.sh
