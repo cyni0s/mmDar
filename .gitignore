@@ -88,3 +88,6 @@ results/*/plots/
 
 # Local helper scripts (not part of the submitted reproduction pipeline)
 run_sweep.sh
+
+# Report source — only REPORT.pdf at the repo root ships
+reports/

@@ -40,8 +40,7 @@ Included:
 4. **`data/processed/radar_250.pt`, `lidar_250.pt`, `norm_250.pt`** — one
    preprocessed trajectory (366 frames, 46 MB) so the Gaussian model can be
    demonstrated end-to-end without the raw dataset.
-5. **`REPORT.pdf`** — final IEEE-format report (and `reports/initial_report/`
-   has the .tex source + figures).
+5. **`REPORT.pdf`** — final IEEE-format report.
 
 Not included (too large for GitHub):
 
@@ -191,7 +190,7 @@ docker compose run --rm mmdar python3 tools/run_inference.py \
 
 ```
 mmDar/
-├── REPORT.pdf                     # Final report (copy of reports/initial_report/report.pdf)
+├── REPORT.pdf                     # Final IEEE-format report
 ├── README.md                      # This file
 ├── Dockerfile, docker-compose.yml, requirements.txt, install.sh
 ├── dataset_5/                     # 336 MB paired radar/lidar PNGs — baseline data
@@ -217,8 +216,7 @@ mmDar/
 ├── tools/run_inference.py         # End-to-end Gaussian inference CLI
 ├── train_test_utils/              # U-Net model, dataloader, Dice loss
 ├── tests/                         # pytest suite
-├── create_dataset/                # Upstream raw-sensor processing (reference only)
-└── reports/initial_report/        # Report .tex + figures + references.bib
+└── create_dataset/                # Upstream raw-sensor processing (reference only)
 ```
 
 ## Citation
